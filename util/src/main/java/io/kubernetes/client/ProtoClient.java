@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import javax.xml.bind.DatatypeConverter;
 
 public class ProtoClient {
   /**
@@ -314,7 +315,7 @@ public class ProtoClient {
     byte[] magic = new byte[4];
     ByteStreams.readFully(stream, magic);
     if (!Arrays.equals(magic, MAGIC)) {
-      throw new ApiException("Unexpected magic number: " + magic);
+      throw new ApiException("Unexpected magic number: " + DatatypeConverter.printHexBinary(magic));
     }
     return Unknown.parseFrom(stream);
   }
