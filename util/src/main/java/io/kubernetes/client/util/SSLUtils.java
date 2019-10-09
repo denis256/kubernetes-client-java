@@ -43,6 +43,7 @@ import java.security.spec.RSAPrivateCrtKeySpec;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.compress.utils.IOUtils;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -316,7 +317,13 @@ public class SSLUtils {
   private static boolean loadDefaultStoreFile(KeyStore keyStore, File fileToLoad, char[] passphrase)
       throws CertificateException, NoSuchAlgorithmException, IOException {
     if (fileToLoad.exists() && fileToLoad.isFile() && fileToLoad.length() > 0) {
-      keyStore.load(new FileInputStream(fileToLoad), passphrase);
+      FileInputStream inputStream = null;
+      try {
+        inputStream = new FileInputStream(fileToLoad);
+        keyStore.load(inputStream, passphrase);
+      } finally {
+        IOUtils.closeQuietly(inputStream);
+      }
       return true;
     }
     return false;
