@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 /**
  * Cache is a java port of k/client-go's ThreadSafeStore. It basically saves and indexes all the
@@ -240,13 +242,13 @@ public class Cache<ApiType> implements Indexer<ApiType> {
       Function<ApiType, List<String>> indexFunc = this.indexers.get(indexName);
       List<String> indexKeys = indexFunc.apply((ApiType) obj);
       Map<String, Set<String>> index = this.indices.get(indexName);
-      if (io.kubernetes.client.util.common.Collections.isEmptyMap(index)) {
+      if (MapUtils.isEmpty(index)) {
         return new ArrayList<>();
       }
       Set<String> returnKeySet = new HashSet<>();
       for (String indexKey : indexKeys) {
         Set<String> set = index.get(indexKey);
-        if (io.kubernetes.client.util.common.Collections.isEmptyCollection(set)) {
+        if (CollectionUtils.isEmpty(set)) {
           continue;
         }
         returnKeySet.addAll(set);
@@ -318,6 +320,38 @@ public class Cache<ApiType> implements Indexer<ApiType> {
   }
 
   /**
+   * Return the indexers registered with the cache.
+   *
+   * @return registered indexers
+   */
+  @Override
+  public Map<String, Function<ApiType, List<String>>> getIndexers() {
+    return indexers;
+  }
+
+  /**
+   * Add additional indexers to the cache.
+   *
+   * @param newIndexers indexers to add
+   */
+  @Override
+  public void addIndexers(Map<String, Function<ApiType, List<String>>> newIndexers) {
+    if (!items.isEmpty()) {
+      throw new IllegalStateException("cannot add indexers to a non-empty cache");
+    }
+    Set<String> oldKeys = indexers.keySet();
+    Set<String> newKeys = newIndexers.keySet();
+    Set<String> intersection = new HashSet<>(oldKeys);
+    intersection.retainAll(newKeys);
+    if (!intersection.isEmpty()) {
+      throw new IllegalArgumentException("indexer conflict: " + intersection);
+    }
+    for (Map.Entry<String, Function<ApiType, List<String>>> indexEntry : newIndexers.entrySet()) {
+      addIndexFunc(indexEntry.getKey(), indexEntry.getValue());
+    }
+  }
+
+  /**
    * updateIndices modifies the objects location in the managed indexes, if this is an update, you
    * must provide an oldObj.
    *
@@ -337,7 +371,7 @@ public class Cache<ApiType> implements Indexer<ApiType> {
       String indexName = indexEntry.getKey();
       Function<ApiType, List<String>> indexFunc = indexEntry.getValue();
       List<String> indexValues = indexFunc.apply(newObj);
-      if (io.kubernetes.client.util.common.Collections.isEmptyCollection(indexValues)) {
+      if (CollectionUtils.isEmpty(indexValues)) {
         continue;
       }
 
@@ -362,7 +396,7 @@ public class Cache<ApiType> implements Indexer<ApiType> {
     for (Map.Entry<String, Function<ApiType, List<String>>> indexEntry : this.indexers.entrySet()) {
       Function<ApiType, List<String>> indexFunc = indexEntry.getValue();
       List<String> indexValues = indexFunc.apply(oldObj);
-      if (io.kubernetes.client.util.common.Collections.isEmptyCollection(indexValues)) {
+      if (CollectionUtils.isEmpty(indexValues)) {
         continue;
       }
 
