@@ -2,12 +2,11 @@ package io.kubernetes.client.informer.cache;
 
 import static org.junit.Assert.*;
 
-import io.kubernetes.client.models.V1ObjectMeta;
-import io.kubernetes.client.models.V1Pod;
-import io.kubernetes.client.models.V1PodSpec;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodSpec;
+import java.util.*;
+import java.util.function.Function;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.contrib.java.lang.system.EnvironmentVariables;
@@ -69,9 +68,9 @@ public class CacheTest {
 
     return Arrays.asList(
         new Object[][] {
-          {normalPod, "io.kubernetes.client.models.V1Pod"},
-          {missingNamespacePod, "io.kubernetes.client.models.V1Pod"},
-          {missingNamePod, "io.kubernetes.client.models.V1Pod"},
+          {normalPod, "io.kubernetes.client.openapi.models.V1Pod"},
+          {missingNamespacePod, "io.kubernetes.client.openapi.models.V1Pod"},
+          {missingNamePod, "io.kubernetes.client.openapi.models.V1Pod"},
           {null, "null"},
         });
   }
@@ -143,5 +142,45 @@ public class CacheTest {
 
     List<V1Pod> nodeNameIndexedPods = podCache.byIndex(testIndexFuncName, "node1");
     assertEquals(1, nodeNameIndexedPods.size());
+  }
+
+  @Test
+  public void testAddIndexers() {
+    Cache<V1Pod> podCache = new Cache<>();
+
+    String nodeIndex = "node-index";
+    String clusterIndex = "cluster-index";
+
+    Map<String, Function<V1Pod, List<String>>> indexers = new HashMap<>();
+
+    indexers.put(
+        nodeIndex,
+        (V1Pod pod) -> {
+          return Arrays.asList(pod.getSpec().getNodeName());
+        });
+
+    indexers.put(
+        clusterIndex,
+        (V1Pod pod) -> {
+          return Arrays.asList(pod.getMetadata().getClusterName());
+        });
+
+    podCache.addIndexers(indexers);
+
+    V1Pod testPod =
+        new V1Pod()
+            .metadata(new V1ObjectMeta().namespace("ns").name("n").clusterName("cluster1"))
+            .spec(new V1PodSpec().nodeName("node1"));
+
+    podCache.add(testPod);
+
+    List<V1Pod> namespaceIndexedPods = podCache.byIndex(Caches.NAMESPACE_INDEX, "ns");
+    assertEquals(1, namespaceIndexedPods.size());
+
+    List<V1Pod> nodeNameIndexedPods = podCache.byIndex(nodeIndex, "node1");
+    assertEquals(1, nodeNameIndexedPods.size());
+
+    List<V1Pod> clusterNameIndexedPods = podCache.byIndex(clusterIndex, "cluster1");
+    assertEquals(1, clusterNameIndexedPods.size());
   }
 }

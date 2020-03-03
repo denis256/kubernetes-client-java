@@ -24,8 +24,10 @@ import static org.junit.Assert.assertEquals;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import com.google.common.io.ByteStreams;
 import io.kubernetes.client.Exec.ExecProcess;
-import io.kubernetes.client.models.V1ObjectMeta;
-import io.kubernetes.client.models.V1Pod;
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.util.ClientBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -143,12 +145,30 @@ public class ExecTest {
     Process p = exec.exec(pod, cmd, "container", true, false);
     p.waitFor();
 
+    exec.newExecutionBuilder(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), cmd)
+        .setContainer("container")
+        .setStdin(false)
+        .setStderr(false)
+        .execute()
+        .waitFor();
+
     verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .withQueryParam("stdin", equalTo("true"))
             .withQueryParam("stdout", equalTo("true"))
             .withQueryParam("stderr", equalTo("true"))
+            .withQueryParam("container", equalTo("container"))
+            .withQueryParam("tty", equalTo("false"))
+            .withQueryParam("command", equalTo("cmd")));
+
+    verify(
+        getRequestedFor(
+                urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
+            .withQueryParam("stdin", equalTo("false"))
+            .withQueryParam("stdout", equalTo("true"))
+            .withQueryParam("stderr", equalTo("false"))
+            .withQueryParam("container", equalTo("container"))
             .withQueryParam("tty", equalTo("false"))
             .withQueryParam("command", equalTo("cmd")));
 

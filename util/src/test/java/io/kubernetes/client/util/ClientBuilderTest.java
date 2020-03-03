@@ -12,6 +12,8 @@ limitations under the License.
  */
 package io.kubernetes.client.util;
 
+import static io.kubernetes.client.util.Config.ENV_SERVICE_HOST;
+import static io.kubernetes.client.util.Config.ENV_SERVICE_PORT;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -19,9 +21,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.io.Resources;
-import io.kubernetes.client.ApiClient;
-import io.kubernetes.client.ApiException;
 import io.kubernetes.client.custom.V1Patch;
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.util.credentials.Authentication;
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +38,8 @@ import org.junit.contrib.java.lang.system.EnvironmentVariables;
 public class ClientBuilderTest {
   private static final String HOME_PATH = Resources.getResource("").getPath();
   private static final String KUBECONFIG_FILE_PATH = Resources.getResource("kubeconfig").getPath();
+  private static final String KUBECONFIG_UTF8_FILE_PATH =
+      Resources.getResource("kubeconfig-utf8").getPath();
   private static final String KUBECONFIG_HTTP_FILE_PATH =
       Resources.getResource("kubeconfig-http").getPath();
   private static final String KUBECONFIG_HTTPS_FILE_PATH =
@@ -77,6 +81,13 @@ public class ClientBuilderTest {
   @Test
   public void testDefaultClientReadsKubeConfig() throws Exception {
     environmentVariables.set("KUBECONFIG", KUBECONFIG_FILE_PATH);
+    final ApiClient client = ClientBuilder.defaultClient();
+    assertEquals("http://kubeconfig.dir.com", client.getBasePath());
+  }
+
+  @Test
+  public void testDefaultClientUTF8EncodedConfig() throws Exception {
+    environmentVariables.set("KUBECONFIG", KUBECONFIG_UTF8_FILE_PATH);
     final ApiClient client = ClientBuilder.defaultClient();
     assertEquals("http://kubeconfig.dir.com", client.getBasePath());
   }
@@ -182,5 +193,39 @@ public class ClientBuilderTest {
     environmentVariables.set("KUBECONFIG", KUBECONFIG);
     final ApiClient client = ClientBuilder.standard().build();
     assertEquals("http://home.dir.com", client.getBasePath());
+  }
+
+  @Test
+  public void testIPv4AddressParsingShouldWork() {
+    environmentVariables.set(ENV_SERVICE_HOST, "127.0.0.1");
+    environmentVariables.set(ENV_SERVICE_PORT, "6443");
+    String ipv4Host = "127.0.0.1";
+    String port = "6443";
+    ClientBuilder builder =
+        new ClientBuilder() {
+          @Override
+          public ClientBuilder setBasePath(String host, String port) {
+            return super.setBasePath(host, port);
+          }
+        }.setBasePath(ipv4Host, port);
+
+    assertEquals("https://127.0.0.1:6443", builder.getBasePath());
+  }
+
+  @Test
+  public void testIPv6AddressParsingShouldWork() {
+    environmentVariables.set(ENV_SERVICE_HOST, "127.0.0.1");
+    environmentVariables.set(ENV_SERVICE_PORT, "6443");
+    String ipv4Host = "::1";
+    String port = "6443";
+    ClientBuilder builder =
+        new ClientBuilder() {
+          @Override
+          public ClientBuilder setBasePath(String host, String port) {
+            return super.setBasePath(host, port);
+          }
+        }.setBasePath(ipv4Host, port);
+
+    assertEquals("https://[::1]:6443", builder.getBasePath());
   }
 }

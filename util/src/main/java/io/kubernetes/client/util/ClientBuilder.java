@@ -22,19 +22,26 @@ import static io.kubernetes.client.util.KubeConfig.KUBECONFIG;
 import static io.kubernetes.client.util.KubeConfig.KUBEDIR;
 
 import com.google.common.base.Strings;
-import com.squareup.okhttp.*;
-import io.kubernetes.client.ApiClient;
+import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.Authentication;
 import io.kubernetes.client.util.credentials.KubeconfigAuthentication;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.Reader;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,8 +87,25 @@ public class ClientBuilder {
 
   public static ClientBuilder standard(boolean persistConfig) throws IOException {
     final File kubeConfig = findConfigFromEnv();
+    ClientBuilder clientBuilderEnv = getClientBuilder(persistConfig, kubeConfig);
+    if (clientBuilderEnv != null) return clientBuilderEnv;
+    final File config = findConfigInHomeDir();
+    ClientBuilder clientBuilderHomeDir = getClientBuilder(persistConfig, config);
+    if (clientBuilderHomeDir != null) return clientBuilderHomeDir;
+    final File clusterCa = new File(SERVICEACCOUNT_CA_PATH);
+    if (clusterCa.exists()) {
+      return cluster();
+    }
+    return new ClientBuilder();
+  }
+
+  private static ClientBuilder getClientBuilder(boolean persistConfig, File kubeConfig)
+      throws IOException {
     if (kubeConfig != null) {
-      try (FileReader kubeConfigReader = new FileReader(kubeConfig)) { // TODO UTF-8
+      try (BufferedReader kubeConfigReader =
+          new BufferedReader(
+              new InputStreamReader(
+                  new FileInputStream(kubeConfig), StandardCharsets.UTF_8.name()))) {
         KubeConfig kc = KubeConfig.loadKubeConfig(kubeConfigReader);
         if (persistConfig) {
           kc.setPersistConfig(new FilePersister(kubeConfig));
@@ -90,22 +114,7 @@ public class ClientBuilder {
         return kubeconfig(kc);
       }
     }
-    final File config = findConfigInHomeDir();
-    if (config != null) {
-      try (FileReader configReader = new FileReader(config)) { // TODO UTF-8
-        KubeConfig kc = KubeConfig.loadKubeConfig(configReader);
-        if (persistConfig) {
-          kc.setPersistConfig(new FilePersister(config));
-        }
-        kc.setFile(config);
-        return kubeconfig(kc);
-      }
-    }
-    final File clusterCa = new File(SERVICEACCOUNT_CA_PATH);
-    if (clusterCa.exists()) {
-      return cluster();
-    }
-    return new ClientBuilder();
+    return null;
   }
 
   private static File findConfigFromEnv() {
@@ -198,7 +207,7 @@ public class ClientBuilder {
 
     final String host = System.getenv(ENV_SERVICE_HOST);
     final String port = System.getenv(ENV_SERVICE_PORT);
-    builder.setBasePath("https://" + host + ":" + port);
+    builder.setBasePath(host, port);
 
     final String token =
         new String(
@@ -207,6 +216,17 @@ public class ClientBuilder {
     builder.setAuthentication(new AccessTokenAuthentication(token));
 
     return builder;
+  }
+
+  protected ClientBuilder setBasePath(String host, String port) {
+    try {
+      Integer iPort = Integer.valueOf(port);
+      URI uri = new URI("https", null, host, iPort, null, null, null);
+      this.setBasePath(uri.toString());
+    } catch (NumberFormatException | URISyntaxException e) {
+      throw new IllegalStateException(e);
+    }
+    return this;
   }
 
   /**
@@ -314,29 +334,32 @@ public class ClientBuilder {
     }
 
     if (!Strings.isNullOrEmpty(overridePatchFormat)) {
-      client
-          .getHttpClient()
-          .interceptors()
-          .add(
-              new Interceptor() {
-                @Override
-                public Response intercept(Chain chain) throws IOException {
-                  Request request = chain.request();
+      OkHttpClient withInterceptor =
+          client
+              .getHttpClient()
+              .newBuilder()
+              .addInterceptor(
+                  new Interceptor() {
+                    @Override
+                    public Response intercept(Chain chain) throws IOException {
+                      Request request = chain.request();
 
-                  if ("PATCH".equals(request.method())) {
+                      if ("PATCH".equals(request.method())) {
 
-                    Request newRequest =
-                        request
-                            .newBuilder()
-                            .patch(
-                                new ProxyContentTypeRequestBody(
-                                    request.body(), overridePatchFormat))
-                            .build();
-                    return chain.proceed(newRequest);
-                  }
-                  return chain.proceed(request);
-                }
-              });
+                        Request newRequest =
+                            request
+                                .newBuilder()
+                                .patch(
+                                    new ProxyContentTypeRequestBody(
+                                        request.body(), overridePatchFormat))
+                                .build();
+                        return chain.proceed(newRequest);
+                      }
+                      return chain.proceed(request);
+                    }
+                  })
+              .build();
+      client.setHttpClient(withInterceptor);
     }
     return client;
   }
