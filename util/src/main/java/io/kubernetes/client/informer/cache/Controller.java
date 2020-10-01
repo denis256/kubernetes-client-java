@@ -1,6 +1,20 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.cache;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.kubernetes.client.common.KubernetesListObject;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.informer.ListerWatcher;
 import io.kubernetes.client.informer.ResyncRunnable;
 import java.util.Deque;
@@ -15,7 +29,8 @@ import org.slf4j.LoggerFactory;
  * Controller is a java port of k/client-go's informer#Controller. It plumbs reflector and the queue
  * implementation and it runs re-sync function periodically.
  */
-public class Controller<ApiType, ApiListType> {
+public class Controller<
+    ApiType extends KubernetesObject, ApiListType extends KubernetesListObject> {
 
   private static final Logger log = LoggerFactory.getLogger(Controller.class);
 
@@ -25,7 +40,7 @@ public class Controller<ApiType, ApiListType> {
   private long fullResyncPeriod;
 
   /** Queue stores deltas produced by reflector */
-  private DeltaFIFO<ApiType> queue;
+  private DeltaFIFO queue;
 
   private ListerWatcher<ApiType, ApiListType> listerWatcher;
 
@@ -34,7 +49,7 @@ public class Controller<ApiType, ApiListType> {
   private Supplier<Boolean> resyncFunc;
 
   /** how we actually process items from the queue */
-  private Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, Object>>> processFunc;
+  private Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, KubernetesObject>>> processFunc;
 
   private ScheduledExecutorService reflectExecutor;
 
@@ -48,9 +63,9 @@ public class Controller<ApiType, ApiListType> {
 
   public Controller(
       Class<ApiType> apiTypeClass,
-      DeltaFIFO<ApiType> queue,
+      DeltaFIFO queue,
       ListerWatcher<ApiType, ApiListType> listerWatcher,
-      Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, Object>>> processFunc,
+      Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, KubernetesObject>>> processFunc,
       Supplier<Boolean> resyncFunc,
       long fullResyncPeriod) {
     this.queue = queue;
@@ -77,9 +92,9 @@ public class Controller<ApiType, ApiListType> {
 
   public Controller(
       Class<ApiType> apiTypeClass,
-      DeltaFIFO<ApiType> queue,
+      DeltaFIFO queue,
       ListerWatcher<ApiType, ApiListType> listerWatcher,
-      Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, Object>>> popProcessFunc) {
+      Consumer<Deque<MutablePair<DeltaFIFO.DeltaType, KubernetesObject>>> popProcessFunc) {
     this(apiTypeClass, queue, listerWatcher, popProcessFunc, null, 0);
   }
 

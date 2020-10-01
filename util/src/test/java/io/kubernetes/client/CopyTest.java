@@ -1,9 +1,9 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import com.github.tomakehurst.wiremock.matching.AnythingPattern;
@@ -26,13 +26,14 @@ import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.util.ClientBuilder;
+import io.kubernetes.client.util.exception.CopyNotSupportedException;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Paths;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /** Tests for the Copy helper class */
 public class CopyTest {
@@ -42,12 +43,12 @@ public class CopyTest {
 
   private ApiClient client;
 
-  private static final int PORT = 8089;
-  @Rule public WireMockRule wireMockRule = new WireMockRule(PORT);
+  @Rule public WireMockRule wireMockRule = new WireMockRule(wireMockConfig().dynamicPort());
+  @Rule public TemporaryFolder folder = new TemporaryFolder();
 
   @Before
   public void setup() throws IOException {
-    client = new ClientBuilder().setBasePath("http://localhost:" + PORT).build();
+    client = new ClientBuilder().setBasePath("http://localhost:" + wireMockRule.port()).build();
 
     namespace = "default";
     podName = "apod";
@@ -67,23 +68,15 @@ public class CopyTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{}")));
 
-    Thread t =
-        new Thread(
-            new Runnable() {
-              @Override
-              public void run() {
-                try {
-                  InputStream is = copy.copyFileFromPod(pod, "container", "/some/path/to/file");
-                } catch (IOException | ApiException e) {
-                  e.printStackTrace();
-                }
-              }
-            });
-    t.start();
-    Thread.sleep(2000);
-    t.interrupt();
+    try {
+      copy.copyFileFromPod(pod, "container", "/some/path/to/file");
+    } catch (IOException | ApiException e) {
+      e.printStackTrace();
+    }
 
-    verify(
+    Thread.sleep(2000);
+
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .withQueryParam("stdin", equalTo("false"))
@@ -94,7 +87,7 @@ public class CopyTest {
   }
 
   @Test
-  public void testCopyFileToPod() throws IOException, ApiException, InterruptedException {
+  public void testCopyFileToPod() throws IOException, InterruptedException {
 
     File testFile = File.createTempFile("testfile", null);
     testFile.deleteOnExit();
@@ -128,7 +121,7 @@ public class CopyTest {
     Thread.sleep(2000);
     t.interrupt();
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .withQueryParam("stdin", equalTo("true"))
@@ -138,5 +131,98 @@ public class CopyTest {
             .withQueryParam("command", equalTo("sh"))
             .withQueryParam("command", equalTo("-c"))
             .withQueryParam("command", equalTo("base64 -d | tar -xmf - -C /")));
+  }
+
+  @Test
+  public void testCopyBinaryDataToPod() throws InterruptedException {
+
+    byte[] testSrc = new byte[0];
+
+    Copy copy = new Copy(client);
+
+    wireMockRule.stubFor(
+        get(urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
+            .willReturn(
+                aResponse()
+                    .withStatus(404)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    // When attempting to write to the process outputstream in copyFileToPod, the
+    // WebSocketStreamHandler is in a wait state because no websocket is created by mock, which
+    // blocks the main thread. So here we execute the method in a thread.
+    Thread t =
+        new Thread(
+            new Runnable() {
+              public void run() {
+                try {
+                  copy.copyFileToPod(
+                      namespace, podName, "", testSrc, Paths.get("/copied-binarydata"));
+                } catch (IOException | ApiException ex) {
+                  ex.printStackTrace();
+                }
+              }
+            });
+    t.start();
+    Thread.sleep(2000);
+    t.interrupt();
+
+    wireMockRule.verify(
+        getRequestedFor(
+                urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
+            .withQueryParam("stdin", equalTo("true"))
+            .withQueryParam("stdout", equalTo("true"))
+            .withQueryParam("stderr", equalTo("true"))
+            .withQueryParam("tty", equalTo("false"))
+            .withQueryParam("command", equalTo("sh"))
+            .withQueryParam("command", equalTo("-c"))
+            .withQueryParam("command", equalTo("base64 -d | tar -xmf - -C /")));
+  }
+
+  public void testCopyDirectoryFromPod() throws IOException, ApiException, InterruptedException {
+
+    // Create a temp directory
+    File tempFolder = folder.newFolder("destinationFolder");
+
+    Copy copy = new Copy(client);
+
+    wireMockRule.stubFor(
+        get(urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
+            .willReturn(
+                aResponse()
+                    .withStatus(404)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{}")));
+
+    Thread t =
+        new Thread(
+            new Runnable() {
+              public void run() {
+                try {
+                  copy.copyDirectoryFromPod(
+                      namespace,
+                      podName,
+                      "",
+                      tempFolder.toPath().toString(),
+                      Paths.get("/copied-testDir"));
+                } catch (IOException | ApiException | CopyNotSupportedException ex) {
+                  ex.printStackTrace();
+                }
+              }
+            });
+    t.start();
+    Thread.sleep(2000);
+    t.interrupt();
+
+    wireMockRule.verify(
+        getRequestedFor(
+                urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
+            .withQueryParam("stdin", equalTo("false"))
+            .withQueryParam("stdout", equalTo("true"))
+            .withQueryParam("stderr", equalTo("true"))
+            .withQueryParam("tty", equalTo("false"))
+            .withQueryParam("command", equalTo("sh"))
+            .withQueryParam("command", equalTo("-c"))
+            .withQueryParam("command", equalTo("tar --version")));
   }
 }

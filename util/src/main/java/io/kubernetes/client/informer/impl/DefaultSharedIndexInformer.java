@@ -1,5 +1,19 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.impl;
 
+import io.kubernetes.client.common.KubernetesListObject;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.informer.ListerWatcher;
 import io.kubernetes.client.informer.ResourceEventHandler;
 import io.kubernetes.client.informer.SharedIndexInformer;
@@ -18,7 +32,8 @@ import org.apache.commons.lang3.tuple.MutablePair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DefaultSharedIndexInformer<ApiType, ApiListType>
+public class DefaultSharedIndexInformer<
+        ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
     implements SharedIndexInformer<ApiType> {
 
   private static final Logger log = LoggerFactory.getLogger(DefaultSharedIndexInformer.class);
@@ -29,7 +44,8 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
   // shouldResync to check if any of our listeners need a resync.
   private long resyncCheckPeriodMillis;
   // defaultEventHandlerResyncPeriod is the default resync period for any handlers added via
-  // AddEventHandler (i.e. they don't specify one and just want to use the shared informer's default
+  // AddEventHandler (i.e. they don't specify one and just want to use the shared informer's
+  // default
   // value).
   private long defaultEventHandlerResyncPeriod;
 
@@ -45,20 +61,27 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
   private volatile boolean stopped = false;
 
   public DefaultSharedIndexInformer(
-      Class<ApiType> apiTypeClass, ListerWatcher listerWatcher, long resyncPeriod) {
+      Class<ApiType> apiTypeClass,
+      ListerWatcher<ApiType, ApiListType> listerWatcher,
+      long resyncPeriod) {
     this(apiTypeClass, listerWatcher, resyncPeriod, new Cache<>());
   }
 
   public DefaultSharedIndexInformer(
       Class<ApiType> apiTypeClass,
-      ListerWatcher listerWatcher,
+      ListerWatcher<ApiType, ApiListType> listerWatcher,
       long resyncPeriod,
       Cache<ApiType> cache) {
     this(
         apiTypeClass,
         listerWatcher,
         resyncPeriod,
-        new DeltaFIFO<>(cache.getKeyFunc(), cache),
+        // down-casting should be safe here because one delta FIFO instance only serves one
+        // resource
+        // type
+        new DeltaFIFO(
+            (Function<KubernetesObject, String>) cache.getKeyFunc(),
+            (Cache<KubernetesObject>) cache),
         cache);
   }
 
@@ -66,7 +89,7 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
       Class<ApiType> apiTypeClass,
       ListerWatcher<ApiType, ApiListType> listerWatcher,
       long resyncPeriod,
-      DeltaFIFO<ApiType> deltaFIFO,
+      DeltaFIFO deltaFIFO,
       Indexer<ApiType> indexer) {
     this.resyncCheckPeriodMillis = resyncPeriod;
     this.defaultEventHandlerResyncPeriod = resyncPeriod;
@@ -116,11 +139,14 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
           log.warn(
               "DefaultSharedIndexInformer#resyncPeriod {} is smaller than resyncCheckPeriod {} and the informer has already started. Changing it to {}",
               resyncPeriodMillis,
+              resyncCheckPeriodMillis,
               resyncCheckPeriodMillis);
           resyncPeriodMillis = resyncCheckPeriodMillis;
         } else {
-          // if the event handler's resyncPeriod is smaller than the current resyncCheckPeriod,
-          // update resyncCheckPeriod to match resyncPeriod and adjust the resync periods of all
+          // if the event handler's resyncPeriod is smaller than the current
+          // resyncCheckPeriod,
+          // update resyncCheckPeriod to match resyncPeriod and adjust the resync periods
+          // of all
           // the listeners accordingly
           this.resyncCheckPeriodMillis = resyncPeriodMillis;
         }
@@ -190,13 +216,13 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
    *
    * @param deltas deltas
    */
-  private void handleDeltas(Deque<MutablePair<DeltaFIFO.DeltaType, Object>> deltas) {
+  public void handleDeltas(Deque<MutablePair<DeltaFIFO.DeltaType, KubernetesObject>> deltas) {
     if (CollectionUtils.isEmpty(deltas)) {
       return;
     }
 
     // from oldest to newest
-    for (MutablePair<DeltaFIFO.DeltaType, Object> delta : deltas) {
+    for (MutablePair<DeltaFIFO.DeltaType, KubernetesObject> delta : deltas) {
       DeltaFIFO.DeltaType deltaType = delta.getLeft();
       switch (deltaType) {
         case Sync:
@@ -243,9 +269,6 @@ public class DefaultSharedIndexInformer<ApiType, ApiListType>
     if (check == 0) {
       return 0;
     }
-    if (desired < check) {
-      return check;
-    }
-    return desired;
+    return Math.max(desired, check);
   }
 }

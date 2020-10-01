@@ -1,5 +1,18 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.cache;
 
+import io.kubernetes.client.common.KubernetesObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -7,7 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -17,17 +29,10 @@ import org.apache.commons.collections4.MapUtils;
  * entries.
  */
 // TODO(yue9944882): Cache is very similar to a Map, replace/inherit w/ Map interface
-public class Cache<ApiType> implements Indexer<ApiType> {
+public class Cache<ApiType extends KubernetesObject> implements Indexer<ApiType> {
 
   /** keyFunc defines how to map objects into indices */
   private Function<ApiType, String> keyFunc;
-
-  /**
-   * DEPRECATE: use Caches#NAMESPACE_INDEX instead. TODO: remove after 7.0.0
-   *
-   * <p>NAMESPACE_INDEX is the default index function for caching objects
-   */
-  @Deprecated public static final String NAMESPACE_INDEX = "namespace";
 
   /** indexers stores index functions by their names */
   private Map<String, Function<ApiType, List<String>>> indexers = new HashMap<>();
@@ -37,10 +42,6 @@ public class Cache<ApiType> implements Indexer<ApiType> {
 
   /** indices stores objects' keys by their indices */
   private Map<String, Map<String, Set<String>>> indices = new HashMap<>();
-
-  /** lock provides thread-safety */
-  // TODO: might remove the lock here and make the methods synchronized
-  private ReentrantLock lock = new ReentrantLock();
 
   public Cache() {
     this(
@@ -73,13 +74,10 @@ public class Cache<ApiType> implements Indexer<ApiType> {
   @Override
   public void add(ApiType obj) {
     String key = keyFunc.apply(obj);
-    lock.lock();
-    try {
+    synchronized (this) {
       ApiType oldObj = this.items.get(key);
       this.items.put(key, obj);
       this.updateIndices(oldObj, obj, key);
-    } finally {
-      lock.unlock();
     }
   }
 
@@ -91,13 +89,10 @@ public class Cache<ApiType> implements Indexer<ApiType> {
   @Override
   public void update(ApiType obj) {
     String key = keyFunc.apply(obj);
-    lock.lock();
-    try {
+    synchronized (this) {
       ApiType oldObj = this.items.get(key);
       this.items.put(key, obj);
       updateIndices(oldObj, obj, key);
-    } finally {
-      lock.unlock();
     }
   }
 
@@ -109,15 +104,12 @@ public class Cache<ApiType> implements Indexer<ApiType> {
   @Override
   public void delete(ApiType obj) {
     String key = keyFunc.apply(obj);
-    lock.lock();
-    try {
+    synchronized (this) {
       boolean exists = this.items.containsKey(key);
       if (exists) {
         this.deleteFromIndices(this.items.get(key), key);
         this.items.remove(key);
       }
-    } finally {
-      lock.unlock();
     }
   }
 
@@ -128,23 +120,18 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @param resourceVersion the resource version
    */
   @Override
-  public void replace(List<ApiType> list, String resourceVersion) {
-    lock.lock();
-    try {
-      Map<String, ApiType> newItems = new HashMap<>();
-      for (ApiType item : list) {
-        String key = keyFunc.apply(item);
-        newItems.put(key, item);
-      }
-      this.items = newItems;
+  public synchronized void replace(List<ApiType> list, String resourceVersion) {
+    Map<String, ApiType> newItems = new HashMap<>();
+    for (ApiType item : list) {
+      String key = keyFunc.apply(item);
+      newItems.put(key, item);
+    }
+    this.items = newItems;
 
-      // rebuild any index
-      this.indices = new HashMap<>();
-      for (Map.Entry<String, ApiType> itemEntry : items.entrySet()) {
-        this.updateIndices(null, itemEntry.getValue(), itemEntry.getKey());
-      }
-    } finally {
-      lock.unlock();
+    // rebuild any index
+    this.indices = new HashMap<>();
+    for (Map.Entry<String, ApiType> itemEntry : items.entrySet()) {
+      this.updateIndices(null, itemEntry.getValue(), itemEntry.getKey());
     }
   }
 
@@ -160,17 +147,12 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the list
    */
   @Override
-  public List<String> listKeys() {
-    lock.lock();
-    try {
-      List<String> keys = new ArrayList<>(this.items.size());
-      for (Map.Entry<String, ApiType> entry : this.items.entrySet()) {
-        keys.add(entry.getKey());
-      }
-      return keys;
-    } finally {
-      lock.unlock();
+  public synchronized List<String> listKeys() {
+    List<String> keys = new ArrayList<>(this.items.size());
+    for (Map.Entry<String, ApiType> entry : this.items.entrySet()) {
+      keys.add(entry.getKey());
     }
+    return keys;
   }
 
   /**
@@ -182,11 +164,8 @@ public class Cache<ApiType> implements Indexer<ApiType> {
   @Override
   public ApiType get(ApiType obj) {
     String key = this.keyFunc.apply(obj);
-    lock.lock();
-    try {
+    synchronized (this) {
       return this.getByKey(key);
-    } finally {
-      lock.unlock();
     }
   }
 
@@ -196,17 +175,12 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the list
    */
   @Override
-  public List<ApiType> list() {
-    lock.lock();
-    try {
-      List<ApiType> itemList = new ArrayList<>(this.items.size());
-      for (Map.Entry<String, ApiType> entry : this.items.entrySet()) {
-        itemList.add(entry.getValue());
-      }
-      return itemList;
-    } finally {
-      lock.unlock();
+  public synchronized List<ApiType> list() {
+    List<ApiType> itemList = new ArrayList<>(this.items.size());
+    for (Map.Entry<String, ApiType> entry : this.items.entrySet()) {
+      itemList.add(entry.getValue());
     }
+    return itemList;
   }
 
   /**
@@ -216,13 +190,8 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the get by key
    */
   @Override
-  public ApiType getByKey(String key) {
-    lock.lock();
-    try {
-      return this.items.get(key);
-    } finally {
-      lock.unlock();
-    }
+  public synchronized ApiType getByKey(String key) {
+    return this.items.get(key);
   }
 
   /**
@@ -233,35 +202,30 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the list
    */
   @Override
-  public List<ApiType> index(String indexName, Object obj) {
-    lock.lock();
-    try {
-      if (!this.indexers.containsKey(indexName)) {
-        throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
-      }
-      Function<ApiType, List<String>> indexFunc = this.indexers.get(indexName);
-      List<String> indexKeys = indexFunc.apply((ApiType) obj);
-      Map<String, Set<String>> index = this.indices.get(indexName);
-      if (MapUtils.isEmpty(index)) {
-        return new ArrayList<>();
-      }
-      Set<String> returnKeySet = new HashSet<>();
-      for (String indexKey : indexKeys) {
-        Set<String> set = index.get(indexKey);
-        if (CollectionUtils.isEmpty(set)) {
-          continue;
-        }
-        returnKeySet.addAll(set);
-      }
-
-      List<ApiType> items = new ArrayList<>(returnKeySet.size());
-      for (String absoluteKey : returnKeySet) {
-        items.add(this.items.get(absoluteKey));
-      }
-      return items;
-    } finally {
-      lock.unlock();
+  public synchronized List<ApiType> index(String indexName, ApiType obj) {
+    if (!this.indexers.containsKey(indexName)) {
+      throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
     }
+    Function<ApiType, List<String>> indexFunc = this.indexers.get(indexName);
+    List<String> indexKeys = indexFunc.apply((ApiType) obj);
+    Map<String, Set<String>> index = this.indices.get(indexName);
+    if (MapUtils.isEmpty(index)) {
+      return new ArrayList<>();
+    }
+    Set<String> returnKeySet = new HashSet<>();
+    for (String indexKey : indexKeys) {
+      Set<String> set = index.get(indexKey);
+      if (CollectionUtils.isEmpty(set)) {
+        continue;
+      }
+      returnKeySet.addAll(set);
+    }
+
+    List<ApiType> items = new ArrayList<>(returnKeySet.size());
+    for (String absoluteKey : returnKeySet) {
+      items.add(this.items.get(absoluteKey));
+    }
+    return items;
   }
 
   /**
@@ -272,22 +236,17 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the list
    */
   @Override
-  public List<String> indexKeys(String indexName, String indexKey) {
-    lock.lock();
-    try {
-      if (!this.indexers.containsKey(indexName)) {
-        throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
-      }
-      Map<String, Set<String>> index = this.indices.get(indexName);
-      Set<String> set = index.get(indexKey);
-      List<String> keys = new ArrayList<>(set.size());
-      for (String key : set) {
-        keys.add(key);
-      }
-      return keys;
-    } finally {
-      lock.unlock();
+  public synchronized List<String> indexKeys(String indexName, String indexKey) {
+    if (!this.indexers.containsKey(indexName)) {
+      throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
     }
+    Map<String, Set<String>> index = this.indices.get(indexName);
+    Set<String> set = index.get(indexKey);
+    List<String> keys = new ArrayList<>(set.size());
+    for (String key : set) {
+      keys.add(key);
+    }
+    return keys;
   }
 
   /**
@@ -298,25 +257,20 @@ public class Cache<ApiType> implements Indexer<ApiType> {
    * @return the list
    */
   @Override
-  public List<ApiType> byIndex(String indexName, String indexKey) {
-    lock.lock();
-    try {
-      if (!this.indexers.containsKey(indexName)) {
-        throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
-      }
-      Map<String, Set<String>> index = this.indices.get(indexName);
-      Set<String> set = index.get(indexKey);
-      if (set == null) {
-        return Arrays.asList();
-      }
-      List<ApiType> items = new ArrayList<>(set.size());
-      for (String key : set) {
-        items.add(this.items.get(key));
-      }
-      return items;
-    } finally {
-      lock.unlock();
+  public synchronized List<ApiType> byIndex(String indexName, String indexKey) {
+    if (!this.indexers.containsKey(indexName)) {
+      throw new IllegalArgumentException(String.format("index %s doesn't exist!", indexName));
     }
+    Map<String, Set<String>> index = this.indices.get(indexName);
+    Set<String> set = index.get(indexKey);
+    if (set == null) {
+      return Arrays.asList();
+    }
+    List<ApiType> items = new ArrayList<>(set.size());
+    for (String key : set) {
+      items.add(this.items.get(key));
+    }
+    return items;
   }
 
   /**
@@ -430,49 +384,5 @@ public class Cache<ApiType> implements Indexer<ApiType> {
 
   public void setKeyFunc(Function<ApiType, String> keyFunc) {
     this.keyFunc = keyFunc;
-  }
-
-  /**
-   * DEPRECATE: use Caches#deletionHandlingMetaNamespaceKeyFunc instead. TODO: remove after 7.0.0
-   *
-   * <p>deletionHandlingMetaNamespaceKeyFunc checks for DeletedFinalStateUnknown objects before
-   * calling metaNamespaceKeyFunc.
-   *
-   * @param <ApiType> the type parameter
-   * @param object specific object
-   * @return the key
-   */
-  @Deprecated
-  public static <ApiType> String deletionHandlingMetaNamespaceKeyFunc(ApiType object) {
-    return Caches.deletionHandlingMetaNamespaceKeyFunc(object);
-  }
-
-  /**
-   * DEPRECATE: use Caches#metaNamespaceKeyFunc instead. TODO: remove after 7.0.0
-   *
-   * <p>MetaNamespaceKeyFunc is a convenient default KeyFunc which knows how to make keys for API
-   * objects which implement HasMetadata Interface. The key uses the format <namespace>/<name>
-   * unless <namespace> is empty, then it's just <name>.
-   *
-   * @param obj specific object
-   * @return the key
-   */
-  @Deprecated
-  public static String metaNamespaceKeyFunc(Object obj) {
-    return Caches.metaNamespaceKeyFunc(obj);
-  }
-
-  /**
-   * DEPRECATE: use Caches#metaNamespaceIndexFunc instead. TODO: remove after 7.0.0
-   *
-   * <p>metaNamespaceIndexFunc is a default index function that indexes based on an object's
-   * namespace.
-   *
-   * @param obj specific object
-   * @return the indexed value
-   */
-  @Deprecated
-  public static List<String> metaNamespaceIndexFunc(Object obj) {
-    return Caches.metaNamespaceIndexFunc(obj);
   }
 }

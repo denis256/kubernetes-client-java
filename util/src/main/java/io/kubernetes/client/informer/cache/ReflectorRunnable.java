@@ -1,19 +1,36 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.cache;
 
+import io.kubernetes.client.common.KubernetesListObject;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.informer.EventType;
 import io.kubernetes.client.informer.ListerWatcher;
 import io.kubernetes.client.openapi.models.V1ListMeta;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.util.*;
-import io.kubernetes.client.util.exception.ObjectMetaReflectException;
+import io.kubernetes.client.util.CallGeneratorParams;
+import io.kubernetes.client.util.Watchable;
 import java.net.ConnectException;
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
+public class ReflectorRunnable<
+        ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+    implements Runnable {
 
   private static final Logger log = LoggerFactory.getLogger(ReflectorRunnable.class);
 
@@ -22,16 +39,28 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
 
   private ListerWatcher<ApiType, ApiListType> listerWatcher;
 
-  private Store<ApiType> store;
+  private DeltaFIFO store;
 
   private Class<ApiType> apiTypeClass;
 
   private AtomicBoolean isActive = new AtomicBoolean(true);
 
-  public ReflectorRunnable(Class<ApiType> apiTypeClass, ListerWatcher listerWatcher, Store store) {
+  private final BiConsumer<Class<ApiType>, Throwable> exceptionHandler;
+
+  public ReflectorRunnable(
+      Class<ApiType> apiTypeClass, ListerWatcher listerWatcher, DeltaFIFO store) {
+    this(apiTypeClass, listerWatcher, store, ReflectorRunnable::defaultWatchErrorHandler);
+  }
+
+  public ReflectorRunnable(
+      Class<ApiType> apiTypeClass,
+      ListerWatcher listerWatcher,
+      DeltaFIFO store,
+      BiConsumer<Class<ApiType>, Throwable> exceptionHandler) {
     this.listerWatcher = listerWatcher;
     this.store = store;
     this.apiTypeClass = apiTypeClass;
+    this.exceptionHandler = exceptionHandler;
   }
 
   /**
@@ -39,14 +68,14 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
    * resource version to watch.
    */
   public void run() {
-    try {
-      log.info("{}#Start listing and watching...", apiTypeClass);
+    log.info("{}#Start listing and watching...", apiTypeClass);
 
+    try {
       ApiListType list = listerWatcher.list(new CallGeneratorParams(Boolean.FALSE, null, null));
 
-      V1ListMeta listMeta = ListAccessor.listMetadata(list);
+      V1ListMeta listMeta = list.getMetadata();
       String resourceVersion = listMeta.getResourceVersion();
-      List<ApiType> items = ListAccessor.getItems(list);
+      List<? extends KubernetesObject> items = list.getItems();
 
       if (log.isDebugEnabled()) {
         log.debug("{}#Extract resourceVersion {} list meta", apiTypeClass, resourceVersion);
@@ -78,25 +107,29 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
                       Long.valueOf(Duration.ofMinutes(5).toMillis()).intValue()));
           watchHandler(watch);
         } catch (Throwable t) {
-          log.info("{}#Watch connection get exception {}", apiTypeClass, t.getMessage());
-          Throwable cause = t.getCause();
-          // If this is "connection refused" error, it means that most likely apiserver is not
-          // responsive.
-          // It doesn't make sense to re-list all objects because most likely we will be able to
-          // restart
-          // watch where we ended.
-          // If that's the case wait and resend watch request.
-          if (cause != null && (cause instanceof ConnectException)) {
-            log.info("{}#Watch get connect exception, retry watch", apiTypeClass);
-            Thread.sleep(1000L);
+          if (isConnectException(t)) {
+            // If this is "connection refused" error, it means that most likely
+            // apiserver is not
+            // responsive.
+            // It doesn't make sense to re-list all objects because most likely we will
+            // be able to
+            // restart
+            // watch where we ended.
+            // If that's the case wait and resend watch request.
+            log.info("{}#Watch get connect exception, retry watch", this.apiTypeClass);
+            try {
+              Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+              // no-op
+            }
             continue;
           }
           if ((t instanceof RuntimeException)
               && t.getMessage().contains("IO Exception during hasNext")) {
-            log.info("{}#Read timeout retry list and watch", apiTypeClass);
+            log.info("{}#Read timeout retry list and watch", this.apiTypeClass);
             return;
           }
-          log.error("{}#Watch failed as {} unexpected", apiTypeClass, t.getMessage(), t);
+          this.exceptionHandler.accept(apiTypeClass, t);
           return;
         } finally {
           if (watch != null) {
@@ -106,7 +139,7 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
         }
       }
     } catch (Throwable t) {
-      log.error("{}#Failed to list-watch: {}", apiTypeClass, t);
+      this.exceptionHandler.accept(apiTypeClass, t);
     }
   }
 
@@ -114,8 +147,9 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
     isActive.set(false);
   }
 
-  private void syncWith(List<ApiType> items, String resourceVersion) {
-    this.store.replace(items, resourceVersion);
+  private void syncWith(List<? extends KubernetesObject> items, String resourceVersion) {
+    this.store.replace(
+        (List<KubernetesObject>) items, resourceVersion); // down-casting is safe here
   }
 
   public String getLastSyncResourceVersion() {
@@ -140,13 +174,7 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
 
       ApiType obj = item.object;
 
-      V1ObjectMeta meta;
-      try {
-        meta = ObjectAccessor.objectMetadata(obj);
-      } catch (ObjectMetaReflectException e) {
-        log.error("malformed watch event {}", item);
-        continue;
-      }
+      V1ObjectMeta meta = obj.getMetadata();
 
       String newResourceVersion = meta.getResourceVersion();
       switch (eventType) {
@@ -159,11 +187,28 @@ public class ReflectorRunnable<ApiType, ApiListType> implements Runnable {
         case DELETED:
           store.delete(obj);
           break;
+        case BOOKMARK:
+          break;
+          // A `Bookmark` means watch has synced here, just update the resourceVersion
       }
       lastSyncResourceVersion = newResourceVersion;
       if (log.isDebugEnabled()) {
         log.debug("{}#Receiving resourceVersion {}", apiTypeClass, lastSyncResourceVersion);
       }
     }
+  }
+
+  private static <ApiType extends KubernetesObject> void defaultWatchErrorHandler(
+      Class<ApiType> watchingApiTypeClass, Throwable t) {
+    log.error(String.format("%s#Reflector loop failed unexpectedly", watchingApiTypeClass), t);
+  }
+
+  private boolean isConnectException(Throwable t) {
+    if (t instanceof ConnectException) {
+      return true;
+    }
+    // ApiException can nest a ConnectException
+    Throwable cause = t.getCause();
+    return cause instanceof ConnectException;
   }
 }

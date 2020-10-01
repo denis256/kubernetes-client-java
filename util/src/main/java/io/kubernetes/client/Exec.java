@@ -1,9 +1,9 @@
 /*
-Copyright 2017, 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -37,6 +37,7 @@ import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -183,7 +184,7 @@ public class Exec {
   public Process exec(
       String namespace, String name, String[] command, String container, boolean stdin, boolean tty)
       throws ApiException, IOException {
-    return newExecutionBuilder(namespace, name, command)
+    return new ExecutionBuilder(namespace, name, command)
         .setContainer(container)
         .setStdin(stdin)
         .setTty(tty)
@@ -349,11 +350,12 @@ public class Exec {
     return -1;
   }
 
-  protected static class ExecProcess extends Process {
+  public static class ExecProcess extends Process {
     private final WebSocketStreamHandler streamHandler;
     private int statusCode = -1;
     private boolean isAlive = true;
     private final Map<Integer, InputStream> input = new HashMap<>();
+    private final CountDownLatch latch = new CountDownLatch(1);
 
     public ExecProcess(final ApiClient apiClient) throws IOException {
       this.streamHandler =
@@ -367,26 +369,33 @@ public class Exec {
                   synchronized (ExecProcess.this) {
                     statusCode = exitCode;
                     isAlive = false;
-                    ExecProcess.this.notifyAll();
                   }
                 }
                 inStream.close();
+                // Stream ID of `3` delivers the status of exec connection from
+                // kubelet,
+                // closing the connection upon 0 exit-code.
+                this.close();
+                ExecProcess.this.latch.countDown();
               } else super.handleMessage(stream, inStream);
             }
 
             @Override
             public void failure(Throwable ex) {
               super.failure(ex);
-              // TODO, it's possible we should suppress this error message, but currently there's
-              // no good place to surface the message, and without it, this will be really hard to
+              // TODO, it's possible we should suppress this error message, but
+              // currently there's
+              // no good place to surface the message, and without it, this will be
+              // really hard to
               // debug.
               ex.printStackTrace();
               synchronized (ExecProcess.this) {
-                // Try for a pretty unique error code, so if someone searches they'll find this
+                // Try for a pretty unique error code, so if someone searches
+                // they'll find this
                 // code.
                 statusCode = -1975219;
                 isAlive = false;
-                ExecProcess.this.notifyAll();
+                ExecProcess.this.latch.countDown();
               }
             }
 
@@ -396,7 +405,7 @@ public class Exec {
               synchronized (ExecProcess.this) {
                 if (isAlive) {
                   isAlive = false;
-                  ExecProcess.this.notifyAll();
+                  ExecProcess.this.latch.countDown();
                 }
               }
 
@@ -425,6 +434,14 @@ public class Exec {
       return getInputStream(2);
     }
 
+    public InputStream getConnectionErrorStream() {
+      return getInputStream(3);
+    }
+
+    public OutputStream getResizeStream() {
+      return streamHandler.getOutputStream(4);
+    }
+
     private synchronized InputStream getInputStream(int stream) {
       if (!input.containsKey(stream)) {
         input.put(stream, streamHandler.getInputStream(stream));
@@ -434,18 +451,14 @@ public class Exec {
 
     @Override
     public int waitFor() throws InterruptedException {
-      synchronized (this) {
-        this.wait();
-        return statusCode;
-      }
+      this.latch.await();
+      return statusCode;
     }
 
     @Override
     public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
-      synchronized (this) {
-        this.wait(TimeUnit.MILLISECONDS.convert(timeout, unit));
-        return !isAlive();
-      }
+      this.latch.await(timeout, unit);
+      return !isAlive();
     }
 
     @Override

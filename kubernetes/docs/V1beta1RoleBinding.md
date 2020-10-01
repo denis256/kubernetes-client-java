@@ -2,7 +2,7 @@
 
 # V1beta1RoleBinding
 
-RoleBinding references a role, but does not contain it.  It can reference a Role in the same namespace or a ClusterRole in the global namespace. It adds who information via Subjects and namespace information by which namespace it exists in.  RoleBindings in a given namespace only have effect in that namespace.
+RoleBinding references a role, but does not contain it.  It can reference a Role in the same namespace or a ClusterRole in the global namespace. It adds who information via Subjects and namespace information by which namespace it exists in.  RoleBindings in a given namespace only have effect in that namespace. Deprecated in v1.17 in favor of rbac.authorization.k8s.io/v1 RoleBinding, and will no longer be served in v1.20.
 ## Properties
 
 Name | Type | Description | Notes
@@ -13,5 +13,9 @@ Name | Type | Description | Notes
 **roleRef** | [**V1beta1RoleRef**](V1beta1RoleRef.md) |  | 
 **subjects** | [**List&lt;V1beta1Subject&gt;**](V1beta1Subject.md) | Subjects holds references to the objects the role applies to. |  [optional]
 
+
+## Implemented Interfaces
+
+* io.kubernetes.client.common.KubernetesObject
 
 

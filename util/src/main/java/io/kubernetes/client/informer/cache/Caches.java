@@ -1,10 +1,20 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.cache;
 
 import com.google.common.base.Strings;
-import io.kubernetes.client.informer.exception.BadObjectException;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.util.ObjectAccessor;
-import io.kubernetes.client.util.exception.ObjectMetaReflectException;
 import java.util.Collections;
 import java.util.List;
 
@@ -22,9 +32,11 @@ public class Caches {
    * @param object specific object
    * @return the key
    */
-  public static <ApiType> String deletionHandlingMetaNamespaceKeyFunc(ApiType object) {
+  public static <ApiType extends KubernetesObject> String deletionHandlingMetaNamespaceKeyFunc(
+      ApiType object) {
     if (object instanceof DeltaFIFO.DeletedFinalStateUnknown) {
-      DeltaFIFO.DeletedFinalStateUnknown deleteObj = (DeltaFIFO.DeletedFinalStateUnknown) object;
+      DeltaFIFO.DeletedFinalStateUnknown<ApiType> deleteObj =
+          (DeltaFIFO.DeletedFinalStateUnknown<ApiType>) object;
       return deleteObj.getKey();
     }
     return metaNamespaceKeyFunc(object);
@@ -38,27 +50,12 @@ public class Caches {
    * @param obj specific object
    * @return the key
    */
-  public static String metaNamespaceKeyFunc(Object obj) {
-    try {
-      V1ObjectMeta metadata;
-      if (obj instanceof String) {
-        return (String) obj;
-      } else if (obj instanceof V1ObjectMeta) {
-        metadata = (V1ObjectMeta) obj;
-      } else {
-        metadata = ObjectAccessor.objectMetadata(obj);
-        if (metadata == null) {
-          throw new BadObjectException(obj);
-        }
-      }
-      if (!Strings.isNullOrEmpty(metadata.getNamespace())) {
-        return metadata.getNamespace() + "/" + metadata.getName();
-      }
-      return metadata.getName();
-    } catch (ObjectMetaReflectException e) {
-      // NOTE(yue9944882): might want to handle this as a checked exception
-      throw new RuntimeException(e);
+  public static String metaNamespaceKeyFunc(KubernetesObject obj) {
+    V1ObjectMeta metadata = obj.getMetadata();
+    if (!Strings.isNullOrEmpty(metadata.getNamespace())) {
+      return metadata.getNamespace() + "/" + metadata.getName();
     }
+    return metadata.getName();
   }
 
   /**
@@ -67,16 +64,11 @@ public class Caches {
    * @param obj specific object
    * @return the indexed value
    */
-  public static List<String> metaNamespaceIndexFunc(Object obj) {
-    try {
-      V1ObjectMeta metadata = ObjectAccessor.objectMetadata(obj);
-      if (metadata == null) {
-        return Collections.emptyList();
-      }
-      return Collections.singletonList(metadata.getNamespace());
-    } catch (ObjectMetaReflectException e) {
-      // NOTE(yue9944882): might want to handle this as a checked exception
-      throw new RuntimeException(e);
+  public static List<String> metaNamespaceIndexFunc(KubernetesObject obj) {
+    V1ObjectMeta metadata = obj.getMetadata();
+    if (metadata == null) {
+      return Collections.emptyList();
     }
+    return Collections.singletonList(metadata.getNamespace());
   }
 }

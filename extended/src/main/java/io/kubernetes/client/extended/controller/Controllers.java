@@ -1,10 +1,21 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.controller;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.extended.controller.reconciler.Request;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.util.ObjectAccessor;
-import io.kubernetes.client.util.exception.ObjectMetaReflectException;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -22,15 +33,11 @@ public class Controllers {
    * @param <ApiType> the type parameter
    * @return the function
    */
-  public static <ApiType> Function<ApiType, Request> defaultReflectiveKeyFunc() {
+  public static <ApiType extends KubernetesObject>
+      Function<ApiType, Request> defaultReflectiveKeyFunc() {
     return (ApiType obj) -> {
-      try {
-        V1ObjectMeta objectMeta = ObjectAccessor.objectMetadata(obj);
-        return new Request(objectMeta.getNamespace(), objectMeta.getName());
-      } catch (ObjectMetaReflectException e) {
-        log.error("Fail to access object-meta from {}..", obj.getClass());
-        return null;
-      }
+      V1ObjectMeta objectMeta = obj.getMetadata();
+      return new Request(objectMeta.getNamespace(), objectMeta.getName());
     };
   }
 

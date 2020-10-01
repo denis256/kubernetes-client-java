@@ -1,9 +1,9 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -290,7 +290,8 @@ public class KubeConfig {
     return token.getAsString();
     // TODO cache tokens between calls, up to .status.expirationTimestamp
     // TODO a 401 is supposed to force a refresh,
-    // but KubeconfigAuthentication hardcodes AccessTokenAuthentication which does not support that
+    // but KubeconfigAuthentication hardcodes AccessTokenAuthentication which does not support
+    // that
     // and anyway ClientBuilder only calls Authenticator.provide once per ApiClient;
     // we would need to do it on every request
   }
@@ -326,7 +327,7 @@ public class KubeConfig {
       JsonElement root;
       try (InputStream is = proc.getInputStream();
           Reader r = new InputStreamReader(is, StandardCharsets.UTF_8)) {
-        root = new JsonParser().parse(r);
+        root = JsonParser.parseReader(r);
       } catch (JsonParseException x) {
         log.error("Failed to parse output of " + command, x);
         return null;
@@ -395,7 +396,15 @@ public class KubeConfig {
     return null;
   }
 
-  public static byte[] getDataOrFile(final String data, final String file) throws IOException {
+  public byte[] getDataOrFileRelative(final String data, final String path) throws IOException {
+    String resolvedPath = path;
+    if (resolvedPath != null && this.file != null) {
+      resolvedPath = this.file.toPath().getParent().resolve(path).normalize().toString();
+    }
+    return getDataOrFile(data, resolvedPath);
+  }
+
+  private static byte[] getDataOrFile(final String data, final String file) throws IOException {
     if (data != null) {
       return Base64.decodeBase64(data);
     }

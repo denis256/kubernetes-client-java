@@ -1,8 +1,22 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.controller;
 
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.extended.controller.reconciler.Request;
 import io.kubernetes.client.extended.workqueue.WorkQueue;
 import io.kubernetes.client.informer.ResourceEventHandler;
+import java.time.Duration;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -12,7 +26,8 @@ import java.util.function.Predicate;
  *
  * @param <ApiType> the type parameter
  */
-public class DefaultControllerWatch<ApiType> implements ControllerWatch<ApiType> {
+public class DefaultControllerWatch<ApiType extends KubernetesObject>
+    implements ControllerWatch<ApiType> {
 
   private final WorkQueue<Request> workQueue;
   private final Function<ApiType, Request> workKeyGenerator;
@@ -21,6 +36,7 @@ public class DefaultControllerWatch<ApiType> implements ControllerWatch<ApiType>
   private Predicate<ApiType> onAddFilterPredicate;
   private BiPredicate<ApiType, ApiType> onUpdateFilterPredicate;
   private BiPredicate<ApiType, Boolean> onDeleteFilterPredicate;
+  private Duration resyncPeriod;
 
   /**
    * Instantiates a new Work queue resource event handler.
@@ -31,10 +47,12 @@ public class DefaultControllerWatch<ApiType> implements ControllerWatch<ApiType>
   public DefaultControllerWatch(
       Class<ApiType> apiTypeClass,
       WorkQueue<Request> workQueue,
-      Function<ApiType, Request> workKeyGenerator) {
+      Function<ApiType, Request> workKeyGenerator,
+      Duration resyncPeriod) {
     this.workQueue = workQueue;
     this.apiTypeClass = apiTypeClass;
     this.workKeyGenerator = workKeyGenerator;
+    this.resyncPeriod = resyncPeriod;
   }
 
   public Predicate<ApiType> getOnAddFilterPredicate() {
@@ -76,14 +94,20 @@ public class DefaultControllerWatch<ApiType> implements ControllerWatch<ApiType>
       @Override
       public void onAdd(ApiType obj) {
         if (onAddFilterPredicate == null || onAddFilterPredicate.test(obj)) {
-          workQueue.add(workKeyGenerator.apply(obj));
+          Request req = workKeyGenerator.apply(obj);
+          if (null != req) {
+            workQueue.add(req);
+          }
         }
       }
 
       @Override
       public void onUpdate(ApiType oldObj, ApiType newObj) {
         if (onUpdateFilterPredicate == null || onUpdateFilterPredicate.test(oldObj, newObj)) {
-          workQueue.add(workKeyGenerator.apply(newObj));
+          Request req = workKeyGenerator.apply(newObj);
+          if (null != req) {
+            workQueue.add(req);
+          }
         }
       }
 
@@ -91,9 +115,17 @@ public class DefaultControllerWatch<ApiType> implements ControllerWatch<ApiType>
       public void onDelete(ApiType obj, boolean deletedFinalStateUnknown) {
         if (onDeleteFilterPredicate == null
             || onDeleteFilterPredicate.test(obj, deletedFinalStateUnknown)) {
-          workQueue.add(workKeyGenerator.apply(obj));
+          Request req = workKeyGenerator.apply(obj);
+          if (null != req) {
+            workQueue.add(req);
+          }
         }
       }
     };
+  }
+
+  @Override
+  public Duration getResyncPeriod() {
+    return this.resyncPeriod;
   }
 }

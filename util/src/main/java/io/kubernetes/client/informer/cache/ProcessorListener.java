@@ -1,5 +1,18 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer.cache;
 
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.informer.ResourceEventHandler;
 import io.kubernetes.client.informer.exception.BadNotificationException;
 import java.util.concurrent.BlockingQueue;
@@ -12,12 +25,14 @@ import org.slf4j.LoggerFactory;
  * ProcessorListener implements Runnable interface. It's supposed to run in background and actually
  * executes its event handler on notification.
  */
-public class ProcessorListener<ApiType> implements Runnable {
+public class ProcessorListener<ApiType extends KubernetesObject> implements Runnable {
 
   private static final Logger log = LoggerFactory.getLogger(ProcessorListener.class);
 
-  // resyncPeriod is how frequently the listener wants a full resync from the shared informer. This
-  // value may differ from requestedResyncPeriod if the shared informer adjusts it to align with the
+  // resyncPeriod is how frequently the listener wants a full resync from the shared informer.
+  // This
+  // value may differ from requestedResyncPeriod if the shared informer adjusts it to align with
+  // the
   // informer's overall resync check period.
   private long resyncPeriod;
   private DateTime nextResync;
@@ -47,7 +62,7 @@ public class ProcessorListener<ApiType> implements Runnable {
                 (ApiType) notification.getOldObj(), (ApiType) notification.getNewObj());
           } catch (Throwable t) {
             // Catch all exceptions here so that listeners won't quit unexpectedly
-            log.error("failed invoking UPDATE event handler: {}", t.getMessage());
+            log.error("failed invoking UPDATE event handler: {}", t);
             continue;
           }
         } else if (obj instanceof AddNotification) {
@@ -56,7 +71,7 @@ public class ProcessorListener<ApiType> implements Runnable {
             this.handler.onAdd((ApiType) notification.getNewObj());
           } catch (Throwable t) {
             // Catch all exceptions here so that listeners won't quit unexpectedly
-            log.error("failed invoking ADD event handler: {}", t.getMessage());
+            log.error("failed invoking ADD event handler: {}", t);
             continue;
           }
         } else if (obj instanceof DeleteNotification) {
@@ -70,14 +85,14 @@ public class ProcessorListener<ApiType> implements Runnable {
             }
           } catch (Throwable t) {
             // Catch all exceptions here so that listeners won't quit unexpectedly
-            log.error("failed invoking DELETE event handler: {}", t.getMessage());
+            log.error("failed invoking DELETE event handler: {}", t);
             continue;
           }
         } else {
           throw new BadNotificationException("unrecognized notification");
         }
       } catch (InterruptedException e) {
-        log.error("processor interrupted: {}", e.getMessage());
+        log.error("processor interrupted: {}", e);
         return;
       }
     }

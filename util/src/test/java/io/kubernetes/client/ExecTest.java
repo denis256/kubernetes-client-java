@@ -1,9 +1,9 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,9 +16,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.Assert.assertEquals;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
@@ -58,12 +57,11 @@ public class ExecTest {
 
   private ApiClient client;
 
-  private static final int PORT = 8089;
-  @Rule public WireMockRule wireMockRule = new WireMockRule(PORT);
+  @Rule public WireMockRule wireMockRule = new WireMockRule(options().dynamicPort());
 
   @Before
   public void setup() throws IOException {
-    client = new ClientBuilder().setBasePath("http://localhost:" + PORT).build();
+    client = new ClientBuilder().setBasePath("http://localhost:" + wireMockRule.port()).build();
 
     namespace = "default";
     podName = "apod";
@@ -109,7 +107,6 @@ public class ExecTest {
 
     process.getHandler().bytesMessage(makeStream(1, msgData.getBytes(StandardCharsets.UTF_8)));
     process.getHandler().bytesMessage(makeStream(2, errData.getBytes(StandardCharsets.UTF_8)));
-    process.getHandler().bytesMessage(makeStream(3, OUTPUT_EXIT0.getBytes(StandardCharsets.UTF_8)));
 
     final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
     final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -117,6 +114,7 @@ public class ExecTest {
     Thread t1 = asyncCopy(process.getInputStream(), stdout);
     Thread t2 = asyncCopy(process.getErrorStream(), stderr);
 
+    process.getHandler().bytesMessage(makeStream(3, OUTPUT_EXIT0.getBytes(StandardCharsets.UTF_8)));
     // TODO: Fix this asap!
     Thread.sleep(1000);
 
@@ -134,7 +132,7 @@ public class ExecTest {
 
     V1Pod pod = new V1Pod().metadata(new V1ObjectMeta().name(podName).namespace(namespace));
 
-    stubFor(
+    wireMockRule.stubFor(
         get(urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .willReturn(
                 aResponse()
@@ -152,7 +150,7 @@ public class ExecTest {
         .execute()
         .waitFor();
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .withQueryParam("stdin", equalTo("true"))
@@ -162,7 +160,7 @@ public class ExecTest {
             .withQueryParam("tty", equalTo("false"))
             .withQueryParam("command", equalTo("cmd")));
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/exec"))
             .withQueryParam("stdin", equalTo("false"))

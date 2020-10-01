@@ -1,47 +1,42 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
- */
+*/
 package io.kubernetes.client.util;
 
-import static io.kubernetes.client.util.Config.ENV_KUBECONFIG;
-import static io.kubernetes.client.util.Config.ENV_SERVICE_HOST;
-import static io.kubernetes.client.util.Config.ENV_SERVICE_PORT;
-import static io.kubernetes.client.util.Config.SERVICEACCOUNT_CA_PATH;
-import static io.kubernetes.client.util.Config.SERVICEACCOUNT_TOKEN_PATH;
+import static io.kubernetes.client.util.Config.*;
 import static io.kubernetes.client.util.KubeConfig.ENV_HOME;
 import static io.kubernetes.client.util.KubeConfig.KUBECONFIG;
 import static io.kubernetes.client.util.KubeConfig.KUBEDIR;
 
-import com.google.common.base.Strings;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.Authentication;
 import io.kubernetes.client.util.credentials.KubeconfigAuthentication;
+import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import okhttp3.Interceptor;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import java.util.Arrays;
+import okhttp3.Protocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +47,6 @@ public class ClientBuilder {
   private String basePath = Config.DEFAULT_FALLBACK_HOST;
   private byte[] caCertBytes = null;
   private boolean verifyingSsl = true;
-  private String overridePatchFormat;
   private Authentication authentication;
 
   /**
@@ -197,12 +191,12 @@ public class ClientBuilder {
   }
 
   /**
-   * Creates a builder which is pre-configured from the cluster configuration.
+   * [DEPRECATED] Creates a builder which is pre-configured from the cluster configuration.
    *
    * @return <tt>ClientBuilder</tt> configured from the cluster configuration.
    * @throws IOException if the Service Account Token Path or CA Path is not readable.
    */
-  public static ClientBuilder cluster() throws IOException {
+  public static ClientBuilder oldCluster() throws IOException {
     final ClientBuilder builder = new ClientBuilder();
 
     final String host = System.getenv(ENV_SERVICE_HOST);
@@ -214,6 +208,26 @@ public class ClientBuilder {
             Files.readAllBytes(Paths.get(SERVICEACCOUNT_TOKEN_PATH)), Charset.defaultCharset());
     builder.setCertificateAuthority(Files.readAllBytes(Paths.get(SERVICEACCOUNT_CA_PATH)));
     builder.setAuthentication(new AccessTokenAuthentication(token));
+
+    return builder;
+  }
+
+  /**
+   * Creates a builder which is pre-configured from the cluster configuration.
+   *
+   * @return <tt>ClientBuilder</tt> configured from the cluster configuration where service account
+   *     token will be reloaded.
+   * @throws IOException if the Service Account Token Path or CA Path is not readable.
+   */
+  public static ClientBuilder cluster() throws IOException {
+    final ClientBuilder builder = new ClientBuilder();
+
+    final String host = System.getenv(ENV_SERVICE_HOST);
+    final String port = System.getenv(ENV_SERVICE_PORT);
+    builder.setBasePath(host, port);
+
+    builder.setCertificateAuthority(Files.readAllBytes(Paths.get(SERVICEACCOUNT_CA_PATH)));
+    builder.setAuthentication(new TokenFileAuthentication(SERVICEACCOUNT_TOKEN_PATH));
 
     return builder;
   }
@@ -251,7 +265,7 @@ public class ClientBuilder {
     }
 
     final byte[] caBytes =
-        KubeConfig.getDataOrFile(
+        config.getDataOrFileRelative(
             config.getCertificateAuthorityData(), config.getCertificateAuthorityFile());
     if (caBytes != null) {
       builder.setCertificateAuthority(caBytes);
@@ -295,17 +309,12 @@ public class ClientBuilder {
     return this;
   }
 
-  public String overridePatchFormat() {
-    return overridePatchFormat;
-  }
-
-  public ClientBuilder setOverridePatchFormat(String patchFormat) {
-    this.overridePatchFormat = patchFormat;
-    return this;
-  }
-
   public ApiClient build() {
     final ApiClient client = new ApiClient();
+
+    // defaulting client protocols to HTTP1.1
+    client.setHttpClient(
+        client.getHttpClient().newBuilder().protocols(Arrays.asList(Protocol.HTTP_1_1)).build());
 
     if (basePath != null) {
       if (basePath.endsWith("/")) {
@@ -333,34 +342,6 @@ public class ClientBuilder {
       client.setSslCaCert(new ByteArrayInputStream(caCertBytes));
     }
 
-    if (!Strings.isNullOrEmpty(overridePatchFormat)) {
-      OkHttpClient withInterceptor =
-          client
-              .getHttpClient()
-              .newBuilder()
-              .addInterceptor(
-                  new Interceptor() {
-                    @Override
-                    public Response intercept(Chain chain) throws IOException {
-                      Request request = chain.request();
-
-                      if ("PATCH".equals(request.method())) {
-
-                        Request newRequest =
-                            request
-                                .newBuilder()
-                                .patch(
-                                    new ProxyContentTypeRequestBody(
-                                        request.body(), overridePatchFormat))
-                                .build();
-                        return chain.proceed(newRequest);
-                      }
-                      return chain.proceed(request);
-                    }
-                  })
-              .build();
-      client.setHttpClient(withInterceptor);
-    }
     return client;
   }
 }

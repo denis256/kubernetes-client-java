@@ -1,3 +1,15 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.util.credentials;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -9,6 +21,7 @@ import com.google.common.io.Resources;
 import io.kubernetes.client.util.TestUtils;
 import io.kubernetes.client.util.authenticators.OpenIDConnectAuthenticator;
 import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -37,6 +50,7 @@ public class OpenIDConnectAuthenticationTest {
               .httpsPort(PORT)
               .keystoreType("JKS")
               .keystorePath(OIDC_SERVER_KS_PATH)
+              .keyManagerPassword("changeme")
               .keystorePassword("changeme"));
 
   @Test
@@ -170,7 +184,8 @@ public class OpenIDConnectAuthenticationTest {
     config.put(
         OpenIDConnectAuthenticator.OIDC_IDP_CERT_DATA,
         Base64.encodeBase64String(
-            exportCert((X509Certificate) serverKs.getCertificate("mykey")).getBytes("UTF-8")));
+            exportCert((X509Certificate) serverKs.getCertificate("mykey"))
+                .getBytes(StandardCharsets.UTF_8)));
 
     Map<String, Object> respMap = oidcAuth.refresh(config);
 
@@ -224,7 +239,8 @@ public class OpenIDConnectAuthenticationTest {
     config.put(
         OpenIDConnectAuthenticator.OIDC_IDP_CERT_DATA,
         Base64.encodeBase64String(
-            exportCert((X509Certificate) serverKs.getCertificate("mykey")).getBytes("UTF-8")));
+            exportCert((X509Certificate) serverKs.getCertificate("mykey"))
+                .getBytes(StandardCharsets.UTF_8)));
 
     Map<String, Object> respMap = oidcAuth.refresh(config);
   }

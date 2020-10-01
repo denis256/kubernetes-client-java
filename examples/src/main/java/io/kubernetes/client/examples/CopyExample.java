@@ -1,9 +1,9 @@
 /*
-Copyright 2017, 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,7 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.exception.CopyNotSupportedException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
@@ -31,7 +32,8 @@ import java.nio.file.Paths;
  * <p>From inside $REPO_DIR/examples
  */
 public class CopyExample {
-  public static void main(String[] args) throws IOException, ApiException, InterruptedException {
+  public static void main(String[] args)
+      throws IOException, ApiException, InterruptedException, CopyNotSupportedException {
     String podName = "kube-addon-manager-minikube";
     String namespace = "kube-system";
 

@@ -1,9 +1,9 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,9 +16,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import io.kubernetes.client.Attach.AttachResult;
@@ -38,12 +37,11 @@ public class AttachTest {
 
   private ApiClient client;
 
-  private static final int PORT = 8089;
-  @Rule public WireMockRule wireMockRule = new WireMockRule(PORT);
+  @Rule public WireMockRule wireMockRule = new WireMockRule(options().dynamicPort());
 
   @Before
   public void setup() throws IOException {
-    client = new ClientBuilder().setBasePath("http://localhost:" + PORT).build();
+    client = new ClientBuilder().setBasePath("http://localhost:" + wireMockRule.port()).build();
 
     namespace = "default";
     podName = "apod";
@@ -54,7 +52,7 @@ public class AttachTest {
   public void testUrl() throws IOException, ApiException, InterruptedException {
     Attach attach = new Attach(client);
 
-    stubFor(
+    wireMockRule.stubFor(
         get(urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/attach"))
             .willReturn(
                 aResponse()
@@ -72,7 +70,8 @@ public class AttachTest {
             .setStdout(true)
             .connect();
 
-    // TODO: Kill this sleep, the trouble is that the test tries to validate before the connection
+    // TODO: Kill this sleep, the trouble is that the test tries to validate before the
+    // connection
     // event has happened
     Thread.sleep(2000);
 
@@ -80,7 +79,7 @@ public class AttachTest {
     res2.close();
     res3.close();
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/attach"))
             .withQueryParam("stdin", equalTo("false"))
@@ -89,7 +88,7 @@ public class AttachTest {
             .withQueryParam("tty", equalTo("false"))
             .withQueryParam("container", equalTo(container)));
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/attach"))
             .withQueryParam("stdin", equalTo("true"))
@@ -97,7 +96,7 @@ public class AttachTest {
             .withQueryParam("stderr", equalTo("false"))
             .withQueryParam("tty", equalTo("false")));
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/attach"))
             .withQueryParam("stdin", equalTo("false"))

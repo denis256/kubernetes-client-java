@@ -1,27 +1,28 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
- */
+*/
 package io.kubernetes.client.util;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.io.Resources;
-import io.kubernetes.client.openapi.models.AppsV1beta1Deployment;
+import io.kubernetes.client.common.KubernetesType;
+import io.kubernetes.client.openapi.models.V1Deployment;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -33,6 +34,7 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
 
@@ -54,7 +56,6 @@ public class YamlTest {
         "Deployment",
         "APIService",
         "Scale",
-        "Deployment"
       };
   private static final String[] apiVersions =
       new String[] {
@@ -62,10 +63,9 @@ public class YamlTest {
         "batch/v2alpha1",
         "autoscaling/v2beta1",
         "rbac.authorization.k8s.io/v1alpha1",
-        "apps/v1beta2",
+        "apps/v1",
         "apiregistration.k8s.io/v1beta1",
-        "extensions/v1beta1",
-        "apps/v1beta1"
+        "apps/v1",
       };
   private static final String[] classNames =
       new String[] {
@@ -73,10 +73,9 @@ public class YamlTest {
         "V2alpha1CronJob",
         "V2beta1HorizontalPodAutoscaler",
         "V1alpha1ClusterRole",
-        "V1beta2Deployment",
+        "V1Deployment",
         "V1beta1APIService",
-        "ExtensionsV1beta1Scale",
-        "AppsV1beta1Deployment"
+        "V1Scale",
       };
   private static final String input =
       "kind: " + "XXXX" + "\n" + "apiVersion: " + "YYYY" + "\n" + "metadata:\n" + "  name: foo";
@@ -128,6 +127,7 @@ public class YamlTest {
   @Test
   public void testLoadAllFile() throws Exception {
     List<Object> list = Yaml.loadAll(new File(TEST_YAML_FILE_PATH));
+    List<KubernetesType> k8ObjectList = new ArrayList<>();
     for (Object object : list) {
       String type = object.getClass().getSimpleName();
       if (type.equals("V1Service")) {
@@ -135,22 +135,25 @@ public class YamlTest {
         assertEquals("v1", svc.getApiVersion());
         assertEquals("Service", svc.getKind());
         assertEquals("mock", svc.getMetadata().getName());
-      } else if (type.equals("AppsV1beta1Deployment")) {
-        AppsV1beta1Deployment deploy = (AppsV1beta1Deployment) object;
-        assertEquals("apps/v1beta1", deploy.getApiVersion());
+        k8ObjectList.add(svc);
+      } else if (type.equals("V1Deployment")) {
+        V1Deployment deploy = (V1Deployment) object;
+        assertEquals("apps/v1", deploy.getApiVersion());
         assertEquals("Deployment", deploy.getKind());
         assertEquals("helloworld", deploy.getMetadata().getName());
+        k8ObjectList.add(deploy);
       } else if (type.equals("V1Secret")) {
         V1Secret secret = (V1Secret) object;
         assertEquals("Secret", secret.getKind());
         assertEquals("secret", secret.getMetadata().getName());
         assertEquals("Opaque", secret.getType());
         assertEquals("hello", new String(secret.getData().get("secret-data"), UTF_8));
+        k8ObjectList.add(secret);
       } else {
         throw new Exception("some thing wrong happened");
       }
     }
-    String result = Yaml.dumpAll(list.iterator());
+    String result = Yaml.dumpAll(k8ObjectList.iterator());
     String expected = Resources.toString(EXPECTED_YAML_FILE, UTF_8);
     assertThat(result, equalTo(expected));
   }
@@ -172,7 +175,7 @@ public class YamlTest {
       assertTrue(
           "Target port for 'intPort' was parsed to a string, integer expected.",
           intPort.getTargetPort().isInteger());
-      assertEquals(1l, (long) intPort.getTargetPort().getIntValue());
+      assertEquals(1L, (long) intPort.getTargetPort().getIntValue());
     } catch (Exception ex) {
       assertNull("Unexpected exception: " + ex.toString(), ex);
     }

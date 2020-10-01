@@ -2,7 +2,7 @@
 
 # V1beta1RoleList
 
-RoleList is a collection of Roles
+RoleList is a collection of Roles Deprecated in v1.17 in favor of rbac.authorization.k8s.io/v1 RoleList, and will no longer be served in v1.20.
 ## Properties
 
 Name | Type | Description | Notes
@@ -12,5 +12,9 @@ Name | Type | Description | Notes
 **kind** | **String** | Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  [optional]
 **metadata** | [**V1ListMeta**](V1ListMeta.md) |  |  [optional]
 
+
+## Implemented Interfaces
+
+* io.kubernetes.client.common.KubernetesListObject
 
 

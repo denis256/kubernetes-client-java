@@ -2,7 +2,7 @@
 
 # V1alpha1ClusterRole
 
-ClusterRole is a cluster level, logical grouping of PolicyRules that can be referenced as a unit by a RoleBinding or ClusterRoleBinding.
+ClusterRole is a cluster level, logical grouping of PolicyRules that can be referenced as a unit by a RoleBinding or ClusterRoleBinding. Deprecated in v1.17 in favor of rbac.authorization.k8s.io/v1 ClusterRole, and will no longer be served in v1.20.
 ## Properties
 
 Name | Type | Description | Notes
@@ -13,5 +13,9 @@ Name | Type | Description | Notes
 **metadata** | [**V1ObjectMeta**](V1ObjectMeta.md) |  |  [optional]
 **rules** | [**List&lt;V1alpha1PolicyRule&gt;**](V1alpha1PolicyRule.md) | Rules holds all the PolicyRules for this ClusterRole |  [optional]
 
+
+## Implemented Interfaces
+
+* io.kubernetes.client.common.KubernetesObject
 
 

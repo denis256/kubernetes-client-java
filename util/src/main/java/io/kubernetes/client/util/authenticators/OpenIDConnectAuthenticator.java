@@ -3,14 +3,13 @@ Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package io.kubernetes.client.util.authenticators;
 
 import io.kubernetes.client.util.KubeConfig;
@@ -84,10 +83,14 @@ public class OpenIDConnectAuthenticator implements Authenticator {
       JsonWebSignature jws = new JsonWebSignature();
       try {
         jws.setCompactSerialization(idToken);
-        // we don't care if its valid or not cryptographicly as the only way to verify is to query
-        // the remote identity provider's configuration url which is the same chanel as the token
-        // request.  If there is a malicious proxy there's no way for the client to know.  Also,
-        // the client doesn't need to trust the, token, only bear it to the server which will verify
+        // we don't care if its valid or not cryptographicly as the only way to verify is to
+        // query
+        // the remote identity provider's configuration url which is the same chanel as the
+        // token
+        // request.  If there is a malicious proxy there's no way for the client to know.
+        // Also,
+        // the client doesn't need to trust the, token, only bear it to the server which
+        // will verify
         // it.
 
         String jwt = jws.getUnverifiedPayload();
@@ -126,7 +129,8 @@ public class OpenIDConnectAuthenticator implements Authenticator {
       try {
         ks = java.security.KeyStore.getInstance("PKCS12");
         ks.load(null, alias.toCharArray());
-        ByteArrayInputStream bais = new ByteArrayInputStream(pemCert.getBytes("UTF-8"));
+        ByteArrayInputStream bais =
+            new ByteArrayInputStream(pemCert.getBytes(StandardCharsets.UTF_8));
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         Collection<? extends java.security.cert.Certificate> c = cf.generateCertificates(bais);
 
@@ -192,7 +196,8 @@ public class OpenIDConnectAuthenticator implements Authenticator {
         https.setSSLSocketFactory(sslContext.getSocketFactory());
       }
 
-      // per https://tools.ietf.org/html/rfc6749#section-2.3 the secret should be a header, not in
+      // per https://tools.ietf.org/html/rfc6749#section-2.3 the secret should be a header,
+      // not in
       // the body
       String credentials =
           Base64.getEncoder()
@@ -202,7 +207,7 @@ public class OpenIDConnectAuthenticator implements Authenticator {
                       .append(':')
                       .append(clientSecret)
                       .toString()
-                      .getBytes("UTF-8"));
+                      .getBytes(StandardCharsets.UTF_8));
       https.setRequestProperty(
           "Authorization", new StringBuilder().append("Basic ").append(credentials).toString());
       https.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
@@ -215,7 +220,7 @@ public class OpenIDConnectAuthenticator implements Authenticator {
               .append("&grant_type=refresh_token")
               .toString();
       OutputStream ou = https.getOutputStream();
-      ou.write(urlData.getBytes("UTF-8"));
+      ou.write(urlData.getBytes(StandardCharsets.UTF_8));
       ou.flush();
       ou.close();
 
@@ -277,9 +282,8 @@ public class OpenIDConnectAuthenticator implements Authenticator {
       String json = scanner.useDelimiter("\\A").next();
 
       JSONObject wellKnownJson = (JSONObject) new JSONParser().parse(json);
-      String tokenUrl = (String) wellKnownJson.get("token_endpoint");
 
-      return tokenUrl;
+      return (String) wellKnownJson.get("token_endpoint");
 
     } catch (IOException | ParseException e) {
       throw new RuntimeException("Could not refresh", e);

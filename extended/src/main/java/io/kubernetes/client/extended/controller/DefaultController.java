@@ -1,3 +1,15 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.controller;
 
 import io.kubernetes.client.extended.controller.reconciler.Reconciler;
@@ -105,7 +117,11 @@ public class DefaultController implements Controller {
       workerThreadPool.scheduleWithFixedDelay(
           () -> {
             log.debug("Starting controller {} worker {}..", this.name, workerIndex);
-            this.worker();
+            try {
+              this.worker();
+            } catch (Throwable t) {
+              log.error("Unexpected controller loop abortion", t);
+            }
             latch.countDown();
             log.debug("Exiting controller {} worker {}..", this.name, workerIndex);
           },
@@ -151,7 +167,13 @@ public class DefaultController implements Controller {
       log.debug("Controller {} start reconciling {}..", this.name, request);
 
       // do reconciliation, invoke user customized logic.
-      Result result = this.reconciler.reconcile(request);
+      Result result = null;
+      try {
+        result = this.reconciler.reconcile(request);
+      } catch (Throwable t) {
+        log.error("Reconciler aborted unexpectedly", t);
+        result = new Result(true);
+      }
 
       try {
         // checks whether do a re-queue (on failure)
@@ -175,6 +197,15 @@ public class DefaultController implements Controller {
         log.debug("Controller {} finished reconciling {}..", this.name, request);
       }
     }
+  }
+
+  public RateLimitingQueue<Request> getWorkQueue() {
+    return workQueue;
+  }
+
+  public DefaultController setWorkQueue(RateLimitingQueue<Request> workQueue) {
+    this.workQueue = workQueue;
+    return this;
   }
 
   public String getName() {

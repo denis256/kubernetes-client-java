@@ -1,3 +1,15 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.leaderelection.resourcelock;
 
 import io.kubernetes.client.extended.leaderelection.LeaderElectionRecord;
@@ -8,6 +20,7 @@ import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.models.V1Endpoints;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import java.net.HttpURLConnection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,8 +94,12 @@ public class EndpointsLock implements Lock {
           coreV1Client.createNamespacedEndpoints(namespace, endpoints, null, null, null);
       endpointsRefer.set(createdendpoints);
       return true;
-    } catch (Throwable t) {
-      log.error("failed to create leader election record as {}", t.getMessage());
+    } catch (ApiException e) {
+      if (e.getCode() == HttpURLConnection.HTTP_CONFLICT) {
+        log.debug("received {} when creating endpoints lock", e.getCode(), e);
+      } else {
+        log.error("received {} when creating endpoints lock", e.getCode(), e);
+      }
       return false;
     }
   }
@@ -101,8 +118,12 @@ public class EndpointsLock implements Lock {
           coreV1Client.replaceNamespacedEndpoints(name, namespace, endpoints, null, null, null);
       endpointsRefer.set(replacedEndpoints);
       return true;
-    } catch (Throwable t) {
-      log.error("failed to update leader election record as {}", t.getMessage());
+    } catch (ApiException e) {
+      if (e.getCode() == HttpURLConnection.HTTP_CONFLICT) {
+        log.debug("received {} when updating endpoints lock", e.getCode(), e);
+      } else {
+        log.error("received {} when updating endpoints lock", e.getCode(), e);
+      }
       return false;
     }
   }

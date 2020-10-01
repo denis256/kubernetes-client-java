@@ -1,9 +1,9 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,12 +16,12 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static io.kubernetes.client.ExecTest.makeStream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import io.kubernetes.client.PortForward.PortForwardResult;
@@ -44,20 +44,17 @@ import org.junit.Test;
 public class PortForwardTest {
   private String namespace;
   private String podName;
-  private String container;
 
   private ApiClient client;
 
-  private static final int PORT = 8089;
-  @Rule public WireMockRule wireMockRule = new WireMockRule(PORT);
+  @Rule public WireMockRule wireMockRule = new WireMockRule(options().dynamicPort());
 
   @Before
   public void setup() throws IOException {
-    client = new ClientBuilder().setBasePath("http://localhost:" + PORT).build();
+    client = new ClientBuilder().setBasePath("http://localhost:" + wireMockRule.port()).build();
 
     namespace = "default";
     podName = "apod";
-    container = "acontainer";
   }
 
   @Test
@@ -66,7 +63,7 @@ public class PortForwardTest {
 
     V1Pod pod = new V1Pod().metadata(new V1ObjectMeta().name(podName).namespace(namespace));
 
-    stubFor(
+    wireMockRule.stubFor(
         get(urlPathEqualTo("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/portforward"))
             .willReturn(
                 aResponse()
@@ -77,13 +74,18 @@ public class PortForwardTest {
     int portNumber = 8080;
     List<Integer> ports = new ArrayList<>();
     ports.add(portNumber);
-    forward.forward(pod, ports);
+    assertThrows(
+        ApiException.class,
+        () -> {
+          forward.forward(pod, ports);
+        });
 
-    // TODO: Kill this sleep, the trouble is that the test tries to validate before the connection
+    // TODO: Kill this sleep, the trouble is that the test tries to validate before the
+    // connection
     // event has happened
     Thread.sleep(2000);
 
-    verify(
+    wireMockRule.verify(
         getRequestedFor(
                 urlPathEqualTo(
                     "/api/v1/namespaces/" + namespace + "/pods/" + podName + "/portforward"))

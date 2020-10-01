@@ -1,8 +1,9 @@
 # Kubernetes Java Client
 
-[![Build Status](https://travis-ci.org/kubernetes-client/java.svg?branch=master)](https://travis-ci.org/kubernetes-client/java)
+![build](https://github.com/kubernetes-client/java/workflows/build/badge.svg)
 [![Client Capabilities](https://img.shields.io/badge/Kubernetes%20client-Silver-blue.svg?style=flat&colorB=C0C0C0&colorA=306CE8)](http://bit.ly/kubernetes-client-capabilities-badge)
 [![Client Support Level](https://img.shields.io/badge/kubernetes%20client-beta-green.svg?style=flat&colorA=306CE8)](http://bit.ly/kubernetes-client-support-badge)
+[![Maven Central](https://img.shields.io/maven-central/v/io.kubernetes/client-java.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.kubernetes%22%20AND%20a:%22client-java%22)
 
 Java client for the [kubernetes](http://kubernetes.io/) API.
 
@@ -32,15 +33,14 @@ Add this dependency to your project's POM:
 <dependency>
     <groupId>io.kubernetes</groupId>
     <artifactId>client-java</artifactId>
-    <version>5.0.0</version>
-    <scope>compile</scope>
+    <version>10.0.0</version>
 </dependency>
 ```
 
 ### Gradle users
 
 ```groovy
-compile 'io.kubernetes:client-java:5.0.0'
+compile 'io.kubernetes:client-java:10.0.0'
 ```
 
 ### Others
@@ -49,15 +49,25 @@ At first generate the JAR by executing:
 
 ```
 git clone --recursive https://github.com/kubernetes-client/java
-cd java
-cd kubernetes
+cd java/kubernetes
 mvn package
 ```
 
 Then manually install the following JARs:
 
-* target/client-java-api-7.0.0-SNAPSHOT.jar
+* target/client-java-api-10.0.1-SNAPSHOT.jar
 * target/lib/*.jar
+
+## Known Issues
+
+##### 1. Exception on deleting resources: "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT..."
+
+This is happening because openapi schema from kubernetes upstream doesn't match its implementation due to 
+the limitation of openapi v2 schema expression [#86](https://github.com/kubernetes-client/java/issues/86). 
+Consider either catch and ignore the JsonSyntaxException or do the deletion in the following form:
+
+- Use Kubectl equivalence, see examples [here](https://github.com/kubernetes-client/java/blob/6fa3525189d9e50d9b07016155642ddf59990905/e2e/src/test/groovy/io/kubernetes/client/e2e/kubectl/KubectlNamespaceTest.groovy#L69-L72)
+- Use generic kubernetes api, see examples [here](https://github.com/kubernetes-client/java/blob/6fa3525189d9e50d9b07016155642ddf59990905/examples/src/main/java/io/kubernetes/client/examples/GenericClientExample.java#L56)
 
 ## Example
 
@@ -93,7 +103,7 @@ We prepared a few examples for common use-cases which are shown below:
   Copy files and directories to and from containers, equal to `kubectl cp`.
   - [WebSocketsExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/WebSocketsExample.java): 
   Establish an arbitrary web-socket session to certain resources.
-- __Advanced__:
+- __Advanced__: (NOTE: The following example requires `client-java-extended` module）
   - ([5.0.0+](https://github.com/kubernetes-client/java/tree/client-java-parent-5.0.0)) [InformerExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/InformerExample.java): 
   Build an informer which list-watches resources and reflects the notifications to a local cache.
   - ([5.0.0+](https://github.com/kubernetes-client/java/tree/client-java-parent-5.0.0)) [PagerExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/PagerExample.java): 
@@ -102,11 +112,15 @@ We prepared a few examples for common use-cases which are shown below:
   Build a controller reconciling the state of world by list-watching one or multiple resources.
   - ([6.0.0+](https://github.com/kubernetes-client/java/tree/client-java-parent-6.0.0)) [LeaderElectionExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/LeaderElectionExample.java): 
   Leader election utilities to help implement HA controllers.
+  - ([9.0.0+](https://github.com/kubernetes-client/java/tree/client-java-parent-9.0.0)) [SpringIntegrationControllerExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/SpringControllerExample.java): 
+  Building a kubernetes controller based on spring framework's bean injection.
+  - ([9.0.0+](https://github.com/kubernetes-client/java/tree/client-java-parent-9.0.0)) [GenericKubernetesClientExample](https://github.com/kubernetes-client/java/blob/master/examples/src/main/java/io/kubernetes/client/examples/GenericClientExample.java): 
+  Construct a generic client interface for any kubernetes types, including CRDs.
 
 
 __list all pods__:
 
-```
+```java
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
@@ -133,7 +147,7 @@ public class Example {
 
 __watch on namespace object__:
 
-```
+```java
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -164,11 +178,15 @@ public class WatchExample {
 }
 ```
 
-More examples can be found in [examples](examples/) folder. To run examples, run this command:
+More examples can be found in [examples](examples) folder. To run examples, run this command:
 
 ```shell
 mvn exec:java -Dexec.mainClass="io.kubernetes.client.examples.Example"
 ```
+## Model Classes from Popular CRDs
+The project also provides model classes generated from some frequently used open source projects as separate maven dependencies. Please refer to the following to see their respective documentation.
+* [cert-manager](client-java-contrib/cert-manager)
+* [prometheus operator](client-java-contrib/prometheus-operator)
 
 ## Documentation
 
@@ -176,13 +194,14 @@ All APIs and Models' documentation can be found at the [Generated client's docs]
 
 ## Compatibility
 
-|  client version  | 1.11      | 1.12     | 1.13     |  1.14     |  1.15    |
-|------------------|-----------|----------|----------|-----------|----------|
-|  3.0.0           |  ✓        |  -       |  -       | -         | -        |
-|  4.0.0           |  +        |  ✓       |  -       | -         | -        |
-|  5.0.0           |  +        |  +       |  ✓       | -         | -        |
-|  6.0.1           |  +        |  +       |  +       | ✓         | -        |
-|  7.0.0           |  +        |  +       |  +       | +         | ✓        |
+|  client version  | 1.13      | 1.14     | 1.15     |  1.16     |  1.17    |  1.18    |
+|------------------|-----------|----------|----------|-----------|----------|----------|
+|  5.0.0           |  ✓        |  -       |  -       | x         | x        | x        |
+|  6.0.1           |  +        |  ✓       |  -       | -         | x        | x        |
+|  7.0.0           |  +        |  +       |  ✓       | -         | -        | x        |
+|  8.0.2           |  +        |  +       |  +       | ✓         | -        | -        |
+|  9.0.2           |  +        |  +       |  +       | +         | ✓        | -        |
+|  10.0.0          |  +        |  +       |  +       | +         | +        | ✓        |
 
 Key: 
 
@@ -192,6 +211,10 @@ Key:
   Kubernetes cluster, but everything they have in common will work.
 * `-` The Kubernetes cluster has features the java-client library can't use
   (additional API objects, etc).
+* `x` The Kubernetes cluster has no guarantees to support the API client of
+  this version, as it only promises _n_-2 version support. It is not tested,
+  and operations using API versions that have been deprecated and removed in
+  later server versions won't function correctly.
 
 See the [CHANGELOG](./CHANGELOG.md) for a detailed description of changes
 between java-client versions.
@@ -231,11 +254,12 @@ git clone https://github.com/kubernetes-client/gen
 export GEN_ROOT=${PWD}
 ```
 
-Then to update the client:
+Then to update the client and run the formatter:
 
 ```sh
 cd ${HOME}/src/java
 ${GEN_ROOT}/gen/openapi/java.sh kubernetes ./settings
+./mvnw spotless:apply
 ```
 
 This should run through a long-ish build process involving `docker` and eventually result in a new set of

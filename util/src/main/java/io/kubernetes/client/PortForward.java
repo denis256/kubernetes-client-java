@@ -1,16 +1,15 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package io.kubernetes.client;
 
 import io.kubernetes.client.openapi.ApiClient;
@@ -110,12 +109,20 @@ public class PortForward {
     String path = makePath(namespace, name);
     WebSocketStreamHandler handler = new WebSocketStreamHandler();
     PortForwardResult result = new PortForwardResult(handler, ports);
-    List<Pair> queryParams = new ArrayList<>();
+    List<Pair> queryParams = new ArrayList<>(ports.size());
     for (Integer port : ports) {
       queryParams.add(new Pair("ports", port.toString()));
     }
     WebSockets.stream(path, "GET", queryParams, apiClient, handler);
-
+    try {
+      handler.waitForInitialized();
+    } catch (InterruptedException ex) {
+      throw new ApiException(ex);
+    }
+    Throwable err = handler.getError();
+    if (err != null) {
+      throw new ApiException(err);
+    }
     // Wait for streams to start.
     result.init();
 

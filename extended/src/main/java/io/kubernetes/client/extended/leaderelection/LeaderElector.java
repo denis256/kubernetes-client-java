@@ -1,5 +1,18 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.leaderelection;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.kubernetes.client.openapi.ApiException;
 import java.net.HttpURLConnection;
 import java.time.Duration;
@@ -8,10 +21,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class LeaderElector {
+public class LeaderElector implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(LeaderElector.class);
 
@@ -22,12 +36,30 @@ public class LeaderElector {
   // internal bookkeeping
   private LeaderElectionRecord observedRecord;
   private long observedTimeMilliSeconds;
+  private final Consumer<Throwable> exceptionHandler;
+  // used to implement OnNewLeader(), may lag slightly from the
+  // value observedRecord.HolderIdentity if the transition has
+  // not yet been reported.
+  private String reportedLeader;
+  private Consumer<String> onNewLeaderHook;
 
-  private ScheduledExecutorService scheduledWorkers = Executors.newSingleThreadScheduledExecutor();
-  private ExecutorService leaseWorkers = Executors.newSingleThreadExecutor();
-  private ExecutorService hookWorkers = Executors.newSingleThreadExecutor();
+  private final ScheduledExecutorService scheduledWorkers =
+      Executors.newSingleThreadScheduledExecutor(
+          makeThreadFactory("leader-elector-scheduled-worker-%d"));
+  private final ExecutorService leaseWorkers =
+      Executors.newSingleThreadExecutor(makeThreadFactory("leader-elector-lease-worker-%d"));
+  private final ExecutorService hookWorkers =
+      Executors.newSingleThreadExecutor(makeThreadFactory("leader-elector-hook-worker-%d"));
 
   public LeaderElector(LeaderElectionConfig config) {
+    this(
+        config,
+        (t) -> {
+          log.error("Unexpected error on acquiring or renewing the lease", t);
+        });
+  }
+
+  public LeaderElector(LeaderElectionConfig config, Consumer<Throwable> exceptionHandler) {
     if (config == null) {
       throw new IllegalArgumentException("Config must be provided.");
     }
@@ -63,9 +95,30 @@ public class LeaderElector {
       throw new IllegalArgumentException(String.join(",", errors));
     }
     this.config = config;
+    this.exceptionHandler = exceptionHandler;
   }
 
+  /**
+   * Runs the leader election in foreground.
+   *
+   * @param startLeadingHook called when a LeaderElector client starts leading
+   * @param stopLeadingHook called when a LeaderElector client stops leading
+   */
   public void run(Runnable startLeadingHook, Runnable stopLeadingHook) {
+    run(startLeadingHook, stopLeadingHook, null);
+  }
+
+  /**
+   * Runs the leader election in foreground.
+   *
+   * @param startLeadingHook called when a LeaderElector client starts leading
+   * @param stopLeadingHook called when a LeaderElector client stops leading
+   * @param onNewLeaderHook called when the client observes a leader that is not the previously
+   *     observed leader. This includes the first observed leader when the client starts.
+   */
+  public void run(
+      Runnable startLeadingHook, Runnable stopLeadingHook, Consumer<String> onNewLeaderHook) {
+    this.onNewLeaderHook = onNewLeaderHook;
     log.info("Start leader election with lock {}", config.getLock().describe());
     try {
       if (!acquire()) {
@@ -105,8 +158,10 @@ public class LeaderElector {
               } catch (CancellationException e) {
                 log.info("Processing tryAcquireOrRenew successfully canceled");
               } catch (Throwable t) {
-                log.error("Error processing tryAcquireOrRenew as {}", t.getMessage());
-                future.cancel(true);
+                this.exceptionHandler.accept(t);
+                future.cancel(true); // make sure the acquire work doesn't overlap
+              } finally {
+                maybeReportTransition();
               }
             },
             0,
@@ -118,7 +173,7 @@ public class LeaderElector {
         Thread.sleep(retryPeriodMillis);
       }
     } catch (InterruptedException e) {
-      log.error("LeaderElection acquire loop gets interrupted {}", e.getMessage());
+      log.error("LeaderElection acquire loop gets interrupted", e);
       return false;
     } finally {
       scheduledFuture.cancel(true);
@@ -144,6 +199,7 @@ public class LeaderElector {
                     // retry until success or interrupted
                     while (!tryAcquireOrRenew()) {
                       Thread.sleep(retryPeriodMillis);
+                      maybeReportTransition();
                     }
                   } catch (InterruptedException e) {
                     return false;
@@ -160,7 +216,7 @@ public class LeaderElector {
           }
           renewResult = false;
         } finally {
-          future.cancel(true);
+          future.cancel(true); // make the lease worker doesn't overlap
         }
         if (renewResult) {
           if (log.isDebugEnabled()) {
@@ -172,7 +228,7 @@ public class LeaderElector {
         }
       }
     } catch (InterruptedException e) {
-      log.error("LeaderElection renew loop gets interrupted {}", e.getMessage());
+      log.error("LeaderElection renew loop gets interrupted", e);
     }
   }
 
@@ -193,7 +249,7 @@ public class LeaderElector {
       oldLeaderElectionRecord = lock.get();
     } catch (ApiException e) {
       if (e.getCode() != HttpURLConnection.HTTP_NOT_FOUND) {
-        log.error("Error retrieving resource lock {} as {}", lock.describe(), e.getMessage());
+        log.error("Error retrieving resource lock {}", lock.describe(), e);
         return false;
       }
 
@@ -262,5 +318,30 @@ public class LeaderElector {
 
   private boolean isLeader() {
     return this.config.getLock().identity().equals(this.observedRecord.getHolderIdentity());
+  }
+
+  private void maybeReportTransition() {
+    if (this.observedRecord == null) {
+      return;
+    }
+    if (this.observedRecord.getHolderIdentity().equals(this.reportedLeader)) {
+      return;
+    }
+    this.reportedLeader = this.observedRecord.getHolderIdentity();
+
+    if (this.onNewLeaderHook != null) {
+      this.hookWorkers.submit(() -> onNewLeaderHook.accept(this.reportedLeader));
+    }
+  }
+
+  private ThreadFactory makeThreadFactory(String nameFormat) {
+    return new ThreadFactoryBuilder().setDaemon(true).setNameFormat(nameFormat).build();
+  }
+
+  @Override
+  public void close() {
+    scheduledWorkers.shutdownNow();
+    leaseWorkers.shutdownNow();
+    hookWorkers.shutdownNow();
   }
 }

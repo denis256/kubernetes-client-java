@@ -1,7 +1,20 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.informer;
 
 import com.google.gson.reflect.TypeToken;
-import io.kubernetes.client.*;
+import io.kubernetes.client.common.KubernetesListObject;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.informer.impl.DefaultSharedIndexInformer;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -9,15 +22,16 @@ import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.util.CallGenerator;
 import io.kubernetes.client.util.CallGeneratorParams;
 import io.kubernetes.client.util.Watch;
+import io.kubernetes.client.util.Watchable;
+import io.kubernetes.client.util.generic.GenericKubernetesApi;
+import io.kubernetes.client.util.generic.options.ListOptions;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
-import okhttp3.OkHttpClient;
 import org.apache.commons.collections4.MapUtils;
 
 /** SharedInformerFactory class constructs and caches informers for api types. */
@@ -33,7 +47,7 @@ public class SharedInformerFactory {
 
   /** Constructor w/ default thread pool. */
   public SharedInformerFactory() {
-    this(Configuration.getDefaultApiClient(), Executors.newCachedThreadPool());
+    this(Configuration.getDefaultApiClient().setReadTimeout(0), Executors.newCachedThreadPool());
   }
 
   /** Constructor w/ api client specified and default thread pool. */
@@ -47,7 +61,7 @@ public class SharedInformerFactory {
    * @param threadPool specified thread pool
    */
   public SharedInformerFactory(ExecutorService threadPool) {
-    this(Configuration.getDefaultApiClient(), threadPool);
+    this(Configuration.getDefaultApiClient().setReadTimeout(0), threadPool);
   }
 
   /**
@@ -57,6 +71,10 @@ public class SharedInformerFactory {
    * @param threadPool specified thread pool
    */
   public SharedInformerFactory(ApiClient client, ExecutorService threadPool) {
+    if (client.getReadTimeout() != 0) {
+      throw new IllegalArgumentException("read timeout of ApiClient must be zero");
+    }
+
     apiClient = client;
     informerExecutor = threadPool;
     informers = new HashMap<>();
@@ -73,16 +91,17 @@ public class SharedInformerFactory {
    * @param apiListTypeClass the api list type class
    * @return the shared index informer
    */
-  public synchronized <ApiType, ApiListType> SharedIndexInformer<ApiType> sharedIndexInformerFor(
-      CallGenerator callGenerator,
-      Class<ApiType> apiTypeClass,
-      Class<ApiListType> apiListTypeClass) {
+  public synchronized <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      SharedIndexInformer<ApiType> sharedIndexInformerFor(
+          CallGenerator callGenerator,
+          Class<ApiType> apiTypeClass,
+          Class<ApiListType> apiListTypeClass) {
     return sharedIndexInformerFor(callGenerator, apiTypeClass, apiListTypeClass, 0);
   }
 
   /**
-   * Constructs and returns a shared index informer w/ resync period specified. And the informer
-   * cache will be overwritten.
+   * Constructs and returns a shared index informer w/ resync period specified. But the informer
+   * cache will not be overwritten i.e. only the first registered informer will be kept.
    *
    * @param <ApiType> the type parameter
    * @param <ApiListType> the type parameter
@@ -92,19 +111,21 @@ public class SharedInformerFactory {
    * @param resyncPeriodInMillis the resync period in millis
    * @return the shared index informer
    */
-  public synchronized <ApiType, ApiListType> SharedIndexInformer<ApiType> sharedIndexInformerFor(
-      CallGenerator callGenerator,
-      Class<ApiType> apiTypeClass,
-      Class<ApiListType> apiListTypeClass,
-      long resyncPeriodInMillis) {
+  public synchronized <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      SharedIndexInformer<ApiType> sharedIndexInformerFor(
+          CallGenerator callGenerator,
+          Class<ApiType> apiTypeClass,
+          Class<ApiListType> apiListTypeClass,
+          long resyncPeriodInMillis) {
     ListerWatcher<ApiType, ApiListType> listerWatcher =
         listerWatcherFor(callGenerator, apiTypeClass, apiListTypeClass);
     return sharedIndexInformerFor(listerWatcher, apiTypeClass, resyncPeriodInMillis);
   }
 
   /**
-   * Constructs and returns a shared index informer by specifying lister-watcher. And the informer
-   * cache will be overwritten on multiple call w/ the the same apiTypeClass.
+   * Constructs and returns a shared index informer by specifying lister-watcher. But the informer
+   * cache will not be overwritten on multiple call w/ the the same apiTypeClass i.e. only the first
+   * registered informer will be kept.
    *
    * @param <ApiType> the type parameter
    * @param <ApiListType> the type parameter
@@ -113,26 +134,46 @@ public class SharedInformerFactory {
    * @param resyncPeriodInMillis the resync period in millis
    * @return the shared index informer
    */
-  public synchronized <ApiType, ApiListType> SharedIndexInformer<ApiType> sharedIndexInformerFor(
-      ListerWatcher<ApiType, ApiListType> listerWatcher,
-      Class<ApiType> apiTypeClass,
-      long resyncPeriodInMillis) {
+  public synchronized <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      SharedIndexInformer<ApiType> sharedIndexInformerFor(
+          ListerWatcher<ApiType, ApiListType> listerWatcher,
+          Class<ApiType> apiTypeClass,
+          long resyncPeriodInMillis) {
     SharedIndexInformer<ApiType> informer =
-        new DefaultSharedIndexInformer<ApiType, ApiListType>(
-            apiTypeClass, listerWatcher, resyncPeriodInMillis);
+        new DefaultSharedIndexInformer<>(apiTypeClass, listerWatcher, resyncPeriodInMillis);
     this.informers.putIfAbsent(TypeToken.get(apiTypeClass).getType(), informer);
     return informer;
   }
 
-  private <ApiType, ApiListType> ListerWatcher<ApiType, ApiListType> listerWatcherFor(
-      CallGenerator callGenerator,
-      Class<ApiType> apiTypeClass,
-      Class<ApiListType> apiListTypeClass) {
-    if (apiClient.getHttpClient().readTimeoutMillis() > 0) {
+  /**
+   * Constructs and returns a shared index informer by specifying a generic api instance. But the
+   * informer cache will not be overwritten on multiple call w/ the the same apiTypeClass i.e. only
+   * the first registered informer will be kept.
+   *
+   * @param <ApiType> the type parameter
+   * @param <ApiListType> the type parameter
+   * @param genericKubernetesApi the generic kubernetes api
+   * @param apiTypeClass the api type class
+   * @param resyncPeriodInMillis the resync period in millis
+   * @return the shared index informer
+   */
+  public synchronized <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      SharedIndexInformer<ApiType> sharedIndexInformerFor(
+          GenericKubernetesApi<ApiType, ApiListType> genericKubernetesApi,
+          Class<ApiType> apiTypeClass,
+          long resyncPeriodInMillis) {
+    ListerWatcher<ApiType, ApiListType> listerWatcher = listerWatcherFor(genericKubernetesApi);
+    return sharedIndexInformerFor(listerWatcher, apiTypeClass, resyncPeriodInMillis);
+  }
+
+  private <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      ListerWatcher<ApiType, ApiListType> listerWatcherFor(
+          CallGenerator callGenerator,
+          Class<ApiType> apiTypeClass,
+          Class<ApiListType> apiListTypeClass) {
+    if (apiClient.getReadTimeout() > 0) {
       // set read timeout zero to ensure client doesn't time out
-      OkHttpClient httpClient =
-          apiClient.getHttpClient().newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build();
-      apiClient.setHttpClient(httpClient);
+      apiClient.setReadTimeout(0);
     }
     return new ListerWatcher<ApiType, ApiListType>() {
       @Override
@@ -144,10 +185,40 @@ public class SharedInformerFactory {
       @Override
       public Watch<ApiType> watch(CallGeneratorParams params) throws ApiException {
         Call call = callGenerator.generate(params);
+        // bind call with private http client to make sure read timeout is zero.
+        call = apiClient.getHttpClient().newCall(call.request());
         return Watch.createWatch(
             apiClient,
             call,
             TypeToken.getParameterized(Watch.Response.class, apiTypeClass).getType());
+      }
+    };
+  }
+
+  private <ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
+      ListerWatcher<ApiType, ApiListType> listerWatcherFor(
+          GenericKubernetesApi<ApiType, ApiListType> genericKubernetesApi) {
+    if (apiClient.getReadTimeout() > 0) {
+      // set read timeout zero to ensure client doesn't time out
+      apiClient.setReadTimeout(0);
+    }
+    // TODO: it seems read timeout is determined by genericKubernetesApi instead of above apiClient.
+    return new ListerWatcher<ApiType, ApiListType>() {
+      public ApiListType list(CallGeneratorParams params) throws ApiException {
+        return genericKubernetesApi
+            .list(
+                new ListOptions() {
+                  {
+                    setResourceVersion(params.resourceVersion);
+                    setTimeoutSeconds(params.timeoutSeconds);
+                  }
+                })
+            .throwsApiException()
+            .getObject();
+      }
+
+      public Watchable<ApiType> watch(CallGeneratorParams params) throws ApiException {
+        return genericKubernetesApi.watch();
       }
     };
   }
@@ -160,8 +231,8 @@ public class SharedInformerFactory {
    * @param apiTypeClass the api type class
    * @return the existing shared index informer
    */
-  public synchronized <ApiType> SharedIndexInformer<ApiType> getExistingSharedIndexInformer(
-      Class<ApiType> apiTypeClass) {
+  public synchronized <ApiType extends KubernetesObject>
+      SharedIndexInformer<ApiType> getExistingSharedIndexInformer(Class<ApiType> apiTypeClass) {
     return this.informers.get(TypeToken.get(apiTypeClass).getType());
   }
 

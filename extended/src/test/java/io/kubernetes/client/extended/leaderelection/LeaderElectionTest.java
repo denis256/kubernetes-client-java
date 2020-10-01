@@ -1,19 +1,41 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package io.kubernetes.client.extended.leaderelection;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
+import io.kubernetes.client.openapi.ApiException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
+@RunWith(MockitoJUnitRunner.class)
 public class LeaderElectionTest {
 
   @Before
@@ -21,6 +43,8 @@ public class LeaderElectionTest {
     MockResourceLock.lock = new ReentrantLock();
     MockResourceLock.leaderRecord = null;
   }
+
+  @Mock private Lock lock;
 
   @Test
   public void testSimpleLeaderElection() throws InterruptedException {
@@ -248,6 +272,124 @@ public class LeaderElectionTest {
           expected[index],
           history.get(index));
     }
+  }
+
+  @Test
+  public void testLeaderElectionCaptureException() throws ApiException, InterruptedException {
+    RuntimeException expectedException = new RuntimeException("noxu");
+    AtomicReference<Throwable> actualException = new AtomicReference<>();
+    when(lock.get()).thenThrow(expectedException);
+    LeaderElectionConfig leaderElectionConfig = new LeaderElectionConfig();
+    leaderElectionConfig.setLock(lock);
+    leaderElectionConfig.setLeaseDuration(Duration.ofMillis(1000));
+    leaderElectionConfig.setRetryPeriod(Duration.ofMillis(200));
+    leaderElectionConfig.setRenewDeadline(Duration.ofMillis(700));
+    LeaderElector leaderElector =
+        new LeaderElector(leaderElectionConfig, (t) -> actualException.set(t));
+
+    ExecutorService leaderElectionWorker = Executors.newFixedThreadPool(1);
+    leaderElectionWorker.submit(
+        () -> {
+          leaderElector.run(() -> {}, () -> {});
+        });
+    // TODO: Remove this sleep
+    Thread.sleep(Duration.ofSeconds(2).toMillis());
+    assertEquals(expectedException, actualException.get().getCause());
+  }
+
+  @Test
+  public void testLeaderElectionReportLeaderOnStart() throws ApiException, InterruptedException {
+    when(lock.identity()).thenReturn("foo1");
+    when(lock.get())
+        .thenReturn(
+            new LeaderElectionRecord() {
+              {
+                setHolderIdentity("foo2");
+                setAcquireTime(new Date());
+                setRenewTime(new Date());
+                setLeaderTransitions(1);
+                setLeaseDurationSeconds(60);
+              }
+            })
+        .thenReturn(
+            new LeaderElectionRecord() {
+              {
+                setHolderIdentity("foo3");
+                setAcquireTime(new Date());
+                setRenewTime(new Date());
+                setLeaderTransitions(1);
+                setLeaseDurationSeconds(60);
+              }
+            });
+
+    List<String> notifications = new ArrayList<>();
+    LeaderElectionConfig leaderElectionConfig = new LeaderElectionConfig();
+    leaderElectionConfig.setLock(lock);
+    leaderElectionConfig.setLeaseDuration(Duration.ofMillis(1000));
+    leaderElectionConfig.setRetryPeriod(Duration.ofMillis(200));
+    leaderElectionConfig.setRenewDeadline(Duration.ofMillis(700));
+    LeaderElector leaderElector = new LeaderElector(leaderElectionConfig);
+    ExecutorService leaderElectionWorker = Executors.newFixedThreadPool(1);
+    final Semaphore s = new Semaphore(2);
+    s.acquire(2);
+    leaderElectionWorker.submit(
+        () -> {
+          leaderElector.run(
+              () -> {},
+              () -> {},
+              (id) -> {
+                notifications.add(id);
+                s.release();
+              });
+        });
+
+    // wait for two notifications to occur.
+    s.acquire(2);
+
+    assertEquals(2, notifications.size());
+    assertEquals("foo2", notifications.get(0));
+    assertEquals("foo3", notifications.get(1));
+  }
+
+  @Test
+  public void testLeaderElectionShouldReportLeaderItAcquiresOnStart()
+      throws ApiException, InterruptedException {
+    when(lock.identity()).thenReturn("foo1");
+    when(lock.get())
+        .thenReturn(
+            new LeaderElectionRecord() {
+              {
+                setHolderIdentity("foo1");
+                setAcquireTime(new Date());
+                setRenewTime(new Date());
+                setLeaderTransitions(1);
+                setLeaseDurationSeconds(60);
+              }
+            });
+    List<String> notifications = new ArrayList<>();
+    LeaderElectionConfig leaderElectionConfig = new LeaderElectionConfig();
+    leaderElectionConfig.setLock(lock);
+    leaderElectionConfig.setLeaseDuration(Duration.ofMillis(1000));
+    leaderElectionConfig.setRetryPeriod(Duration.ofMillis(200));
+    leaderElectionConfig.setRenewDeadline(Duration.ofMillis(700));
+    LeaderElector leaderElector = new LeaderElector(leaderElectionConfig);
+    ExecutorService leaderElectionWorker = Executors.newFixedThreadPool(1);
+    Semaphore s = new Semaphore(1);
+    s.acquire();
+    leaderElectionWorker.submit(
+        () -> {
+          leaderElector.run(
+              () -> {},
+              () -> {},
+              (id) -> {
+                notifications.add(id);
+                s.release();
+              });
+        });
+
+    s.acquire();
+    assertEquals(1, notifications.size());
+    assertEquals("foo1", notifications.get(0));
   }
 
   public static class MockResourceLock implements Lock {

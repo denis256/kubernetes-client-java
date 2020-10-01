@@ -1,9 +1,9 @@
 /*
-Copyright 2017, 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,14 +17,19 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.util.exception.CopyNotSupportedException;
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.apache.commons.codec.binary.Base64InputStream;
 import org.apache.commons.codec.binary.Base64OutputStream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
@@ -93,12 +98,12 @@ public class Copy extends Exec {
   }
 
   public void copyDirectoryFromPod(V1Pod pod, String srcPath, Path destination)
-      throws ApiException, IOException {
+      throws ApiException, IOException, CopyNotSupportedException {
     copyDirectoryFromPod(pod, null, srcPath, destination);
   }
 
   public void copyDirectoryFromPod(V1Pod pod, String container, String srcPath, Path destination)
-      throws ApiException, IOException {
+      throws ApiException, IOException, CopyNotSupportedException {
     copyDirectoryFromPod(
         pod.getMetadata().getNamespace(),
         pod.getMetadata().getName(),
@@ -108,14 +113,46 @@ public class Copy extends Exec {
   }
 
   public void copyDirectoryFromPod(String namespace, String pod, String srcPath, Path destination)
-      throws ApiException, IOException {
+      throws ApiException, IOException, CopyNotSupportedException {
     copyDirectoryFromPod(namespace, pod, null, srcPath, destination);
   }
 
   public void copyDirectoryFromPod(
       String namespace, String pod, String container, String srcPath, Path destination)
-      throws ApiException, IOException {
-    // TODO: Test that 'tar' is present in the container?
+      throws ApiException, IOException, CopyNotSupportedException {
+    // Test that 'tar' is present in the container?
+    if (!isTarPresentInContainer(namespace, pod, container)) {
+      throw new CopyNotSupportedException("Tar is not present in the target container");
+    }
+    copyDirectoryFromPod(namespace, pod, container, srcPath, destination, true);
+  }
+
+  /**
+   * Copy directory from a pod to local.
+   *
+   * @param namespace
+   * @param pod
+   * @param container
+   * @param srcPath
+   * @param destination
+   * @param enableTarCompressing: false if tar is not present in target container
+   * @throws IOException
+   * @throws ApiException
+   */
+  public void copyDirectoryFromPod(
+      String namespace,
+      String pod,
+      String container,
+      String srcPath,
+      Path destination,
+      boolean enableTarCompressing)
+      throws IOException, ApiException {
+    if (!enableTarCompressing) {
+      TreeNode tree = new TreeNode(true, srcPath, true);
+      createDirectoryTree(tree, namespace, pod, container, srcPath);
+      createDirectoryStructureFromTree(tree, namespace, pod, container, srcPath, destination);
+      return;
+    }
     final Process proc =
         this.exec(
             namespace,
@@ -160,6 +197,125 @@ public class Copy extends Exec {
     }
   }
 
+  // This creates directories and files using tree of files and directories under container
+  private void createDirectoryStructureFromTree(
+      TreeNode tree,
+      String namespace,
+      String pod,
+      String container,
+      String srcPath,
+      Path destination)
+      throws IOException, ApiException {
+    // Code for creating invidual directory and files
+    createDirectory(tree, destination);
+    createFiles(tree, namespace, pod, container, srcPath, destination);
+  }
+
+  // Method to create files from directories/files tree in destination
+  private void createFiles(
+      TreeNode node,
+      String namespace,
+      String pod,
+      String container,
+      String srcPath,
+      Path destination)
+      throws IOException, ApiException {
+    if (node == null) {
+      return;
+    }
+    for (TreeNode childNode : node.getChildren()) {
+      if (!childNode.isDir) {
+        // Create file which is under 'node'
+        String filePath = genericPathBuilder(destination.toString(), childNode.name);
+        File f = new File(filePath);
+        if (!f.createNewFile()) {
+          throw new IOException("Failed to create file: " + f);
+        }
+        String modifiedSrcPath = genericPathBuilder(srcPath, childNode.name);
+        try (InputStream is = copyFileFromPod(namespace, pod, modifiedSrcPath);
+            OutputStream fs = new FileOutputStream(f)) {
+          ByteStreams.copy(is, fs);
+          fs.flush();
+        }
+      } else {
+        String newSrcPath = genericPathBuilder(srcPath, childNode.name);
+        // TODO: Change this once the method genericPathBuilder is changed to varargs
+        Path newDestination = Paths.get(destination.toString(), childNode.name);
+        createFiles(childNode, namespace, pod, container, newSrcPath, newDestination);
+      }
+    }
+  }
+
+  // Method to create directories in destination path
+  private void createDirectory(TreeNode node, Path destination) throws IOException {
+    if (node == null) {
+      return;
+    }
+    if (!node.isRoot) {
+      // String directoryPath = genericPathBuilder(destination.toString(), node.name);
+      File f = new File(destination.toString());
+      // File f = new File(directoryPath);
+      if (!f.mkdirs()) {
+        throw new IOException("Failed to create directory: " + f);
+      }
+    }
+    for (TreeNode childNode : node.getChildren()) {
+      if (childNode.isDir) {
+        String path = genericPathBuilder(destination.toString(), childNode.name);
+        Path newPath = Paths.get(path);
+        createDirectory(childNode, newPath);
+      }
+    }
+  }
+
+  // Method to create a tree of files and directory of location inside container
+  private void createDirectoryTree(
+      TreeNode node, String namespace, String pod, String container, String srcPath)
+      throws IOException, ApiException {
+    if (node.isDir) {
+      final Process proc =
+          this.exec(
+              namespace,
+              pod,
+              new String[] {"sh", "-c", "ls -F " + srcPath},
+              container,
+              false,
+              false);
+
+      try (InputStream is = proc.getInputStream();
+          BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+        String line = "";
+        while ((line = reader.readLine()) != null) {
+          int len = line.length();
+          // line = stripFileSeparators(line);
+          if (line.charAt(line.length() - 1) == '/') {
+            TreeNode subDirTree =
+                new TreeNode(
+                    true,
+                    line.substring(0, len - 1),
+                    false); // Stripping off '/' in the end of directory
+            String path = genericPathBuilder(srcPath, subDirTree.name);
+            createDirectoryTree(subDirTree, namespace, pod, container, path);
+            node.getChildren().add(subDirTree);
+          } else {
+            node.getChildren().add(new TreeNode(false, line, false));
+          }
+        }
+      }
+    }
+  }
+
+  /*
+  Generic method to create path.
+  TODO: Change this to varargs
+  */
+  private String genericPathBuilder(String first, String second) {
+    StringBuilder pathBuilder = new StringBuilder(first);
+    pathBuilder.append(File.separator);
+    pathBuilder.append(second);
+    return pathBuilder.toString();
+  }
+
   public static void copyFileFromPod(String namespace, String pod, String srcPath, Path dest)
       throws ApiException, IOException {
     Copy c = new Copy();
@@ -175,15 +331,7 @@ public class Copy extends Exec {
       throws ApiException, IOException {
 
     // Run decoding and extracting processes
-    String parentPath = destPath.getParent() != null ? destPath.getParent().toString() : ".";
-    final Process proc =
-        this.exec(
-            namespace,
-            pod,
-            new String[] {"sh", "-c", "base64 -d | tar -xmf - -C " + parentPath},
-            container,
-            true,
-            false);
+    final Process proc = execCopyToPod(namespace, pod, container, destPath);
 
     // Send encoded archive output stream
     File srcFile = new File(srcPath.toUri());
@@ -199,7 +347,54 @@ public class Copy extends Exec {
     } finally {
       proc.destroy();
     }
+  }
 
-    return;
+  public void copyFileToPod(
+      String namespace, String pod, String container, byte[] src, Path destPath)
+      throws ApiException, IOException {
+
+    // Run decoding and extracting processes
+    final Process proc = execCopyToPod(namespace, pod, container, destPath);
+
+    try (ArchiveOutputStream archiveOutputStream =
+        new TarArchiveOutputStream(new Base64OutputStream(proc.getOutputStream(), true, 0, null))) {
+
+      ArchiveEntry tarEntry = new TarArchiveEntry(new File(destPath.getFileName().toString()));
+      ((TarArchiveEntry) tarEntry).setSize(src.length);
+
+      archiveOutputStream.putArchiveEntry(tarEntry);
+      ByteStreams.copy(new ByteArrayInputStream(src), archiveOutputStream);
+      archiveOutputStream.closeArchiveEntry();
+    } finally {
+      proc.destroy();
+    }
+  }
+
+  private Process execCopyToPod(String namespace, String pod, String container, Path destPath)
+      throws ApiException, IOException {
+    String parentPath = destPath.getParent() != null ? destPath.getParent().toString() : ".";
+    return this.exec(
+        namespace,
+        pod,
+        new String[] {"sh", "-c", "base64 -d | tar -xmf - -C " + parentPath},
+        container,
+        true,
+        false);
+  }
+
+  private boolean isTarPresentInContainer(String namespace, String pod, String container)
+      throws ApiException, IOException {
+    final Process proc =
+        this.exec(
+            namespace, pod, new String[] {"sh", "-c", "tar --version"}, container, false, false);
+    // This will work for POSIX based operating systems
+    try {
+      int status = proc.waitFor();
+      return status != 127;
+    } catch (InterruptedException ex) {
+      throw new IOException(ex);
+    } finally {
+      proc.destroy();
+    }
   }
 }

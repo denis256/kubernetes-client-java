@@ -1,9 +1,9 @@
 /*
-Copyright 2017, 2018 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -49,11 +49,18 @@ public class WebSocketStreamHandler implements WebSockets.SocketListener, Closea
 
   private State state = State.UNINITIALIZED;
 
-  private static enum State {
+  private enum State {
     UNINITIALIZED,
     OPEN,
     CLOSED
-  };
+  }
+
+  public synchronized void waitForInitialized() throws InterruptedException {
+    if (state != State.UNINITIALIZED) {
+      return;
+    }
+    this.wait();
+  }
 
   @Override
   public synchronized void open(String protocol, WebSocket socket) {
@@ -87,6 +94,7 @@ public class WebSocketStreamHandler implements WebSockets.SocketListener, Closea
     try {
       OutputStream out = getSocketInputOutputStream(stream);
       ByteStreams.copy(inStream, out);
+      out.flush();
     } finally {
       inStream.close();
     }
@@ -137,6 +145,7 @@ public class WebSocketStreamHandler implements WebSockets.SocketListener, Closea
         }
       }
     }
+    notifyAll();
   }
 
   /**
