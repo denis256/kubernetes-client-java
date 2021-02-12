@@ -12,18 +12,17 @@ limitations under the License.
 */
 package io.kubernetes.client.extended.event.legacy;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.kubernetes.client.fluent.Function;
-import io.kubernetes.client.openapi.models.V1Event;
-import io.kubernetes.client.openapi.models.V1EventBuilder;
+import io.kubernetes.client.openapi.models.CoreV1Event;
+import io.kubernetes.client.openapi.models.CoreV1EventBuilder;
 import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
+import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import org.apache.commons.lang3.tuple.MutablePair;
-import org.joda.time.DateTime;
 
 public class EventAggregator {
 
@@ -33,37 +32,32 @@ public class EventAggregator {
 
   public EventAggregator(
       int maxLRUCacheEntries,
-      Function<V1Event, MutablePair<String, String>> keyFunc,
-      Function<V1Event, String> messageFunc) {
+      Function<CoreV1Event, MutablePair<String, String>> keyFunc,
+      Function<CoreV1Event, String> messageFunc) {
     this.keyFunc = keyFunc;
     this.messageFunc = messageFunc;
     this.maxEvents = DEFAULT_MAX_EVENT_LOCAL_KEYS;
     this.spammingCache =
-        CacheBuilder.newBuilder()
+        Caffeine.newBuilder()
             .maximumSize(maxLRUCacheEntries)
             .expireAfterWrite(DEFAULT_EVENT_AGGREGATE_CACHE_EXPIRATION)
             .build();
   }
 
   private Cache<String, AggregatedRecord> spammingCache;
-  private Function<V1Event, MutablePair<String, String>> keyFunc;
-  private Function<V1Event, String> messageFunc;
+  private Function<CoreV1Event, MutablePair<String, String>> keyFunc;
+  private Function<CoreV1Event, String> messageFunc;
 
   private final int maxEvents;
 
-  public synchronized MutablePair<V1Event, String> aggregate(V1Event event) {
-    DateTime now = DateTime.now();
+  public synchronized MutablePair<CoreV1Event, String> aggregate(CoreV1Event event) {
+    OffsetDateTime now = OffsetDateTime.now();
 
     MutablePair<String, String> aggregatedKeys = keyFunc.apply(event);
     String aggregatedKey = aggregatedKeys.getLeft();
     String localKey = aggregatedKeys.getRight();
 
-    AggregatedRecord record;
-    try {
-      record = this.spammingCache.get(aggregatedKey, AggregatedRecord::new);
-    } catch (ExecutionException e) {
-      throw new IllegalStateException(e);
-    }
+    AggregatedRecord record = this.spammingCache.get(aggregatedKey, k -> new AggregatedRecord());
     record.lastTimestamp = now;
     record.localKeys.add(localKey);
 
@@ -72,8 +66,8 @@ public class EventAggregator {
       return new MutablePair<>(event, EventUtils.getEventKey(event));
     }
     record.localKeys.remove(record.localKeys.stream().findAny().get()); // remove any keys
-    V1Event aggregatedEvent =
-        new V1EventBuilder(event)
+    CoreV1Event aggregatedEvent =
+        new CoreV1EventBuilder(event)
             .withMetadata(
                 new V1ObjectMetaBuilder()
                     .withName(EventUtils.generateName(event.getInvolvedObject().getName(), now))
@@ -88,9 +82,9 @@ public class EventAggregator {
     return new MutablePair<>(aggregatedEvent, aggregatedKey);
   }
 
-  private class AggregatedRecord {
+  private static class AggregatedRecord {
     private Set<String> localKeys = new HashSet<>();
-    private DateTime lastTimestamp;
+    private OffsetDateTime lastTimestamp;
 
     @Override
     public boolean equals(Object o) {

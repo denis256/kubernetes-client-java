@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -26,7 +26,7 @@ import java.util.Objects;
         "PriorityClass defines mapping from a priority class name to the priority integer value. The value can be any valid integer.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1PriorityClass implements io.kubernetes.client.common.KubernetesObject {
   public static final String SERIALIZED_NAME_API_VERSION = "apiVersion";
 
@@ -195,15 +195,15 @@ public class V1PriorityClass implements io.kubernetes.client.common.KubernetesOb
 
   /**
    * PreemptionPolicy is the Policy for preempting pods with lower priority. One of Never,
-   * PreemptLowerPriority. Defaults to PreemptLowerPriority if unset. This field is alpha-level and
-   * is only honored by servers that enable the NonPreemptingPriority feature.
+   * PreemptLowerPriority. Defaults to PreemptLowerPriority if unset. This field is beta-level,
+   * gated by the NonPreemptingPriority feature-gate.
    *
    * @return preemptionPolicy
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "PreemptionPolicy is the Policy for preempting pods with lower priority. One of Never, PreemptLowerPriority. Defaults to PreemptLowerPriority if unset. This field is alpha-level and is only honored by servers that enable the NonPreemptingPriority feature.")
+          "PreemptionPolicy is the Policy for preempting pods with lower priority. One of Never, PreemptLowerPriority. Defaults to PreemptLowerPriority if unset. This field is beta-level, gated by the NonPreemptingPriority feature-gate.")
   public String getPreemptionPolicy() {
     return preemptionPolicy;
   }

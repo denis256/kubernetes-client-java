@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,12 +19,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** ComponentStatus (and ComponentStatusList) holds the cluster validation info. */
+/**
+ * ComponentStatus (and ComponentStatusList) holds the cluster validation info. Deprecated: This API
+ * is deprecated in v1.19+
+ */
 @ApiModel(
-    description = "ComponentStatus (and ComponentStatusList) holds the cluster validation info.")
+    description =
+        "ComponentStatus (and ComponentStatusList) holds the cluster validation info. Deprecated: This API is deprecated in v1.19+")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1ComponentStatus implements io.kubernetes.client.common.KubernetesObject {
   public static final String SERIALIZED_NAME_API_VERSION = "apiVersion";
 
@@ -80,7 +84,7 @@ public class V1ComponentStatus implements io.kubernetes.client.common.Kubernetes
 
   public V1ComponentStatus addConditionsItem(V1ComponentCondition conditionsItem) {
     if (this.conditions == null) {
-      this.conditions = new ArrayList<V1ComponentCondition>();
+      this.conditions = new ArrayList<>();
     }
     this.conditions.add(conditionsItem);
     return this;

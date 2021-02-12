@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.util.Objects;
         "This information is immutable after the request is created. Only the Request and Usages fields can be set on creation, other fields are derived by Kubernetes and cannot be modified by users.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1beta1CertificateSigningRequestSpec {
   public static final String SERIALIZED_NAME_EXTRA = "extra";
 
@@ -76,7 +76,7 @@ public class V1beta1CertificateSigningRequestSpec {
 
   public V1beta1CertificateSigningRequestSpec putExtraItem(String key, List<String> extraItem) {
     if (this.extra == null) {
-      this.extra = new HashMap<String, List<String>>();
+      this.extra = new HashMap<>();
     }
     this.extra.put(key, extraItem);
     return this;
@@ -106,7 +106,7 @@ public class V1beta1CertificateSigningRequestSpec {
 
   public V1beta1CertificateSigningRequestSpec addGroupsItem(String groupsItem) {
     if (this.groups == null) {
-      this.groups = new ArrayList<String>();
+      this.groups = new ArrayList<>();
     }
     this.groups.add(groupsItem);
     return this;
@@ -207,7 +207,7 @@ public class V1beta1CertificateSigningRequestSpec {
 
   public V1beta1CertificateSigningRequestSpec addUsagesItem(String usagesItem) {
     if (this.usages == null) {
-      this.usages = new ArrayList<String>();
+      this.usages = new ArrayList<>();
     }
     this.usages.add(usagesItem);
     return this;
@@ -216,14 +216,22 @@ public class V1beta1CertificateSigningRequestSpec {
   /**
    * allowedUsages specifies a set of usage contexts the key will be valid for. See:
    * https://tools.ietf.org/html/rfc5280#section-4.2.1.3
-   * https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+   * https://tools.ietf.org/html/rfc5280#section-4.2.1.12 Valid values are: \&quot;signing\&quot;,
+   * \&quot;digital signature\&quot;, \&quot;content commitment\&quot;, \&quot;key
+   * encipherment\&quot;, \&quot;key agreement\&quot;, \&quot;data encipherment\&quot;, \&quot;cert
+   * sign\&quot;, \&quot;crl sign\&quot;, \&quot;encipher only\&quot;, \&quot;decipher only\&quot;,
+   * \&quot;any\&quot;, \&quot;server auth\&quot;, \&quot;client auth\&quot;, \&quot;code
+   * signing\&quot;, \&quot;email protection\&quot;, \&quot;s/mime\&quot;, \&quot;ipsec end
+   * system\&quot;, \&quot;ipsec tunnel\&quot;, \&quot;ipsec user\&quot;,
+   * \&quot;timestamping\&quot;, \&quot;ocsp signing\&quot;, \&quot;microsoft sgc\&quot;,
+   * \&quot;netscape sgc\&quot;
    *
    * @return usages
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "allowedUsages specifies a set of usage contexts the key will be valid for. See: https://tools.ietf.org/html/rfc5280#section-4.2.1.3      https://tools.ietf.org/html/rfc5280#section-4.2.1.12")
+          "allowedUsages specifies a set of usage contexts the key will be valid for. See: https://tools.ietf.org/html/rfc5280#section-4.2.1.3      https://tools.ietf.org/html/rfc5280#section-4.2.1.12 Valid values are:  \"signing\",  \"digital signature\",  \"content commitment\",  \"key encipherment\",  \"key agreement\",  \"data encipherment\",  \"cert sign\",  \"crl sign\",  \"encipher only\",  \"decipher only\",  \"any\",  \"server auth\",  \"client auth\",  \"code signing\",  \"email protection\",  \"s/mime\",  \"ipsec end system\",  \"ipsec tunnel\",  \"ipsec user\",  \"timestamping\",  \"ocsp signing\",  \"microsoft sgc\",  \"netscape sgc\"")
   public List<String> getUsages() {
     return usages;
   }

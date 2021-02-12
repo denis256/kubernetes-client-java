@@ -25,7 +25,11 @@ import io.kubernetes.client.informer.SharedInformerFactory;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.JSON;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.openapi.models.V1ListMeta;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodList;
+import io.kubernetes.client.openapi.models.V1PodSpec;
 import io.kubernetes.client.util.CallGeneratorParams;
 import io.kubernetes.client.util.ClientBuilder;
 import java.util.ArrayList;
@@ -89,6 +93,7 @@ public class DefaultControllerBuilderTest {
               null,
               null,
               params.resourceVersion,
+              null,
               params.timeoutSeconds,
               params.watch,
               null);
@@ -159,6 +164,7 @@ public class DefaultControllerBuilderTest {
                   null,
                   null,
                   params.resourceVersion,
+                  null,
                   params.timeoutSeconds,
                   params.watch,
                   null);

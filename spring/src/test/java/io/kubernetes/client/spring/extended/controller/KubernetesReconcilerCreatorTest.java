@@ -12,9 +12,7 @@ limitations under the License.
 */
 package io.kubernetes.client.spring.extended.controller;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import io.kubernetes.client.common.KubernetesObject;
@@ -29,17 +27,24 @@ import io.kubernetes.client.informer.SharedInformerFactory;
 import io.kubernetes.client.informer.cache.DeltaFIFO;
 import io.kubernetes.client.informer.cache.Lister;
 import io.kubernetes.client.informer.impl.DefaultSharedIndexInformer;
+import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
+import io.kubernetes.client.openapi.models.V1ConfigMapList;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
 import io.kubernetes.client.spring.extended.controller.annotation.AddWatchEventFilter;
 import io.kubernetes.client.spring.extended.controller.annotation.DeleteWatchEventFilter;
+import io.kubernetes.client.spring.extended.controller.annotation.GroupVersionResource;
+import io.kubernetes.client.spring.extended.controller.annotation.KubernetesInformer;
+import io.kubernetes.client.spring.extended.controller.annotation.KubernetesInformers;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesReconciler;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesReconcilerReadyFunc;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesReconcilerWatch;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesReconcilerWatches;
 import io.kubernetes.client.spring.extended.controller.annotation.UpdateWatchEventFilter;
+import io.kubernetes.client.spring.extended.controller.factory.KubernetesControllerFactory;
+import io.kubernetes.client.util.ClientBuilder;
 import java.util.LinkedList;
 import java.util.function.Function;
 import javax.annotation.Resource;
@@ -47,35 +52,59 @@ import org.apache.commons.lang3.tuple.MutablePair;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit4.SpringRunner;
 
 @RunWith(SpringRunner.class)
-@SpringBootTest
-@Import(KubernetesInformerCreatorTest.TestConfig.class)
+@SpringBootTest(classes = {KubernetesReconcilerCreatorTest.App.class})
 public class KubernetesReconcilerCreatorTest {
 
   @Rule public WireMockRule wireMockRule = new WireMockRule(8189);
 
-  @TestConfiguration
-  static class TestConfig {
-
+  @SpringBootApplication
+  @EnableAutoConfiguration
+  static class App {
     @Bean
-    public TestReconciler podReconciler(
-        SharedInformer<V1Pod> podInformer,
-        Lister<V1Pod> podLister,
-        SharedInformer<V1ConfigMap> configMapInformer,
-        Lister<V1ConfigMap> configMapLister) {
-      return new TestReconciler(podInformer, podLister, configMapLister);
+    public ApiClient testingApiClient() {
+      ApiClient apiClient = new ClientBuilder().setBasePath("http://localhost:" + 8188).build();
+      return apiClient;
     }
 
     @Bean
-    public KubernetesReconcilerConfigurer kubernetesReconcilerConfigurer(
-        SharedInformerFactory sharedInformerFactory) {
-      return new KubernetesReconcilerConfigurer(sharedInformerFactory);
+    public SharedInformerFactory sharedInformerFactory() {
+      return new KubernetesInformerCreatorTest.App.TestSharedInformerFactory();
+    }
+
+    @KubernetesInformers({
+      @KubernetesInformer(
+          apiTypeClass = V1Pod.class,
+          apiListTypeClass = V1PodList.class,
+          groupVersionResource =
+              @GroupVersionResource(apiGroup = "", apiVersion = "v1", resourcePlural = "pods")),
+      @KubernetesInformer(
+          apiTypeClass = V1ConfigMap.class,
+          apiListTypeClass = V1ConfigMapList.class,
+          groupVersionResource =
+              @GroupVersionResource(
+                  apiGroup = "",
+                  apiVersion = "v1",
+                  resourcePlural = "configmaps")),
+    })
+    static class TestSharedInformerFactory extends SharedInformerFactory {}
+
+    @Bean
+    public TestReconciler testReconciler() {
+      return new TestReconciler();
+    }
+
+    @Bean
+    public KubernetesControllerFactory testControllerFactory(
+        SharedInformerFactory sharedInformerFactory, Reconciler reconciler) {
+      return new KubernetesControllerFactory(sharedInformerFactory, reconciler);
     }
   }
 
@@ -93,20 +122,11 @@ public class KubernetesReconcilerCreatorTest {
 
     private Request receivedRequest;
 
-    public TestReconciler(
-        SharedInformer<V1Pod> podInformer,
-        Lister<V1Pod> podLister,
-        Lister<V1ConfigMap> configMapLister) {
-      this.podInformer = podInformer;
-      this.podLister = podLister;
-      this.configMapLister = configMapLister;
-    }
+    @Autowired private SharedInformer<V1Pod> podInformer;
 
-    private final SharedInformer<V1Pod> podInformer;
+    @Autowired private Lister<V1Pod> podLister;
 
-    private final Lister<V1Pod> podLister;
-
-    private final Lister<V1ConfigMap> configMapLister;
+    @Autowired private Lister<V1ConfigMap> configMapLister;
 
     @Override
     public Result reconcile(Request request) {
@@ -115,28 +135,27 @@ public class KubernetesReconcilerCreatorTest {
     }
 
     @AddWatchEventFilter(apiTypeClass = V1Pod.class)
-    private boolean onAddFilter(V1Pod pod) {
+    public boolean onAddFilter(V1Pod pod) {
       return true;
     }
 
     @UpdateWatchEventFilter(apiTypeClass = V1Pod.class)
-    private boolean onUpdateFilter(V1Pod oldPod, V1Pod newPod) {
+    public boolean onUpdateFilter(V1Pod oldPod, V1Pod newPod) {
       return true;
     }
 
     @DeleteWatchEventFilter(apiTypeClass = V1Pod.class)
-    private boolean onDeleteFilter(V1Pod pod) {
+    public boolean onDeleteFilter(V1Pod pod) {
       return true;
     }
 
     @KubernetesReconcilerReadyFunc
-    private boolean podInformerCacheReady() {
+    public boolean podInformerCacheReady() {
       return podInformer.hasSynced();
     }
   }
 
-  @Resource(name = "test-reconcile")
-  private Controller testController;
+  @Resource private Controller testController;
 
   @Resource private TestReconciler testReconciler;
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,15 +18,15 @@ import io.swagger.annotations.ApiModelProperty;
 import java.util.Objects;
 
 /**
- * NetworkPolicyPeer describes a peer to allow traffic from. Only certain combinations of fields are
- * allowed
+ * NetworkPolicyPeer describes a peer to allow traffic to/from. Only certain combinations of fields
+ * are allowed
  */
 @ApiModel(
     description =
-        "NetworkPolicyPeer describes a peer to allow traffic from. Only certain combinations of fields are allowed")
+        "NetworkPolicyPeer describes a peer to allow traffic to/from. Only certain combinations of fields are allowed")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1NetworkPolicyPeer {
   public static final String SERIALIZED_NAME_IP_BLOCK = "ipBlock";
 

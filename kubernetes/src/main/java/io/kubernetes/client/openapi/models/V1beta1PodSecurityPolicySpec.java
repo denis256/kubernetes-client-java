@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -23,7 +23,7 @@ import java.util.Objects;
 @ApiModel(description = "PodSecurityPolicySpec defines the policy enforced.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1beta1PodSecurityPolicySpec {
   public static final String SERIALIZED_NAME_ALLOW_PRIVILEGE_ESCALATION =
       "allowPrivilegeEscalation";
@@ -182,16 +182,16 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addAllowedCSIDriversItem(
       V1beta1AllowedCSIDriver allowedCSIDriversItem) {
     if (this.allowedCSIDrivers == null) {
-      this.allowedCSIDrivers = new ArrayList<V1beta1AllowedCSIDriver>();
+      this.allowedCSIDrivers = new ArrayList<>();
     }
     this.allowedCSIDrivers.add(allowedCSIDriversItem);
     return this;
   }
 
   /**
-   * AllowedCSIDrivers is a whitelist of inline CSI drivers that must be explicitly set to be
+   * AllowedCSIDrivers is an allowlist of inline CSI drivers that must be explicitly set to be
    * embedded within a pod spec. An empty value indicates that any CSI driver can be used for inline
-   * ephemeral volumes. This is an alpha field, and is only honored if the API server enables the
+   * ephemeral volumes. This is a beta field, and is only honored if the API server enables the
    * CSIInlineVolume feature gate.
    *
    * @return allowedCSIDrivers
@@ -199,7 +199,7 @@ public class V1beta1PodSecurityPolicySpec {
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "AllowedCSIDrivers is a whitelist of inline CSI drivers that must be explicitly set to be embedded within a pod spec. An empty value indicates that any CSI driver can be used for inline ephemeral volumes. This is an alpha field, and is only honored if the API server enables the CSIInlineVolume feature gate.")
+          "AllowedCSIDrivers is an allowlist of inline CSI drivers that must be explicitly set to be embedded within a pod spec. An empty value indicates that any CSI driver can be used for inline ephemeral volumes. This is a beta field, and is only honored if the API server enables the CSIInlineVolume feature gate.")
   public List<V1beta1AllowedCSIDriver> getAllowedCSIDrivers() {
     return allowedCSIDrivers;
   }
@@ -216,7 +216,7 @@ public class V1beta1PodSecurityPolicySpec {
 
   public V1beta1PodSecurityPolicySpec addAllowedCapabilitiesItem(String allowedCapabilitiesItem) {
     if (this.allowedCapabilities == null) {
-      this.allowedCapabilities = new ArrayList<String>();
+      this.allowedCapabilities = new ArrayList<>();
     }
     this.allowedCapabilities.add(allowedCapabilitiesItem);
     return this;
@@ -251,23 +251,23 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addAllowedFlexVolumesItem(
       V1beta1AllowedFlexVolume allowedFlexVolumesItem) {
     if (this.allowedFlexVolumes == null) {
-      this.allowedFlexVolumes = new ArrayList<V1beta1AllowedFlexVolume>();
+      this.allowedFlexVolumes = new ArrayList<>();
     }
     this.allowedFlexVolumes.add(allowedFlexVolumesItem);
     return this;
   }
 
   /**
-   * allowedFlexVolumes is a whitelist of allowed Flexvolumes. Empty or nil indicates that all
-   * Flexvolumes may be used. This parameter is effective only when the usage of the Flexvolumes is
-   * allowed in the \&quot;volumes\&quot; field.
+   * allowedFlexVolumes is an allowlist of Flexvolumes. Empty or nil indicates that all Flexvolumes
+   * may be used. This parameter is effective only when the usage of the Flexvolumes is allowed in
+   * the \&quot;volumes\&quot; field.
    *
    * @return allowedFlexVolumes
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "allowedFlexVolumes is a whitelist of allowed Flexvolumes.  Empty or nil indicates that all Flexvolumes may be used.  This parameter is effective only when the usage of the Flexvolumes is allowed in the \"volumes\" field.")
+          "allowedFlexVolumes is an allowlist of Flexvolumes.  Empty or nil indicates that all Flexvolumes may be used.  This parameter is effective only when the usage of the Flexvolumes is allowed in the \"volumes\" field.")
   public List<V1beta1AllowedFlexVolume> getAllowedFlexVolumes() {
     return allowedFlexVolumes;
   }
@@ -286,22 +286,22 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addAllowedHostPathsItem(
       V1beta1AllowedHostPath allowedHostPathsItem) {
     if (this.allowedHostPaths == null) {
-      this.allowedHostPaths = new ArrayList<V1beta1AllowedHostPath>();
+      this.allowedHostPaths = new ArrayList<>();
     }
     this.allowedHostPaths.add(allowedHostPathsItem);
     return this;
   }
 
   /**
-   * allowedHostPaths is a white list of allowed host paths. Empty indicates that all host paths may
-   * be used.
+   * allowedHostPaths is an allowlist of host paths. Empty indicates that all host paths may be
+   * used.
    *
    * @return allowedHostPaths
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "allowedHostPaths is a white list of allowed host paths. Empty indicates that all host paths may be used.")
+          "allowedHostPaths is an allowlist of host paths. Empty indicates that all host paths may be used.")
   public List<V1beta1AllowedHostPath> getAllowedHostPaths() {
     return allowedHostPaths;
   }
@@ -319,14 +319,14 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addAllowedProcMountTypesItem(
       String allowedProcMountTypesItem) {
     if (this.allowedProcMountTypes == null) {
-      this.allowedProcMountTypes = new ArrayList<String>();
+      this.allowedProcMountTypes = new ArrayList<>();
     }
     this.allowedProcMountTypes.add(allowedProcMountTypesItem);
     return this;
   }
 
   /**
-   * AllowedProcMountTypes is a whitelist of allowed ProcMountTypes. Empty or nil indicates that
+   * AllowedProcMountTypes is an allowlist of allowed ProcMountTypes. Empty or nil indicates that
    * only the DefaultProcMountType may be used. This requires the ProcMountType feature flag to be
    * enabled.
    *
@@ -335,7 +335,7 @@ public class V1beta1PodSecurityPolicySpec {
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "AllowedProcMountTypes is a whitelist of allowed ProcMountTypes. Empty or nil indicates that only the DefaultProcMountType may be used. This requires the ProcMountType feature flag to be enabled.")
+          "AllowedProcMountTypes is an allowlist of allowed ProcMountTypes. Empty or nil indicates that only the DefaultProcMountType may be used. This requires the ProcMountType feature flag to be enabled.")
   public List<String> getAllowedProcMountTypes() {
     return allowedProcMountTypes;
   }
@@ -352,7 +352,7 @@ public class V1beta1PodSecurityPolicySpec {
 
   public V1beta1PodSecurityPolicySpec addAllowedUnsafeSysctlsItem(String allowedUnsafeSysctlsItem) {
     if (this.allowedUnsafeSysctls == null) {
-      this.allowedUnsafeSysctls = new ArrayList<String>();
+      this.allowedUnsafeSysctls = new ArrayList<>();
     }
     this.allowedUnsafeSysctls.add(allowedUnsafeSysctlsItem);
     return this;
@@ -362,7 +362,7 @@ public class V1beta1PodSecurityPolicySpec {
    * allowedUnsafeSysctls is a list of explicitly allowed unsafe sysctls, defaults to none. Each
    * entry is either a plain sysctl name or ends in \&quot;*\&quot; in which case it is considered
    * as a prefix of allowed sysctls. Single * means all unsafe sysctls are allowed. Kubelet has to
-   * whitelist all allowed unsafe sysctls explicitly to avoid rejection. Examples: e.g.
+   * allowlist all allowed unsafe sysctls explicitly to avoid rejection. Examples: e.g.
    * \&quot;foo/_*\&quot; allows \&quot;foo/bar\&quot;, \&quot;foo/baz\&quot;, etc. e.g.
    * \&quot;foo.*\&quot; allows \&quot;foo.bar\&quot;, \&quot;foo.baz\&quot;, etc.
    *
@@ -371,7 +371,7 @@ public class V1beta1PodSecurityPolicySpec {
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "allowedUnsafeSysctls is a list of explicitly allowed unsafe sysctls, defaults to none. Each entry is either a plain sysctl name or ends in \"*\" in which case it is considered as a prefix of allowed sysctls. Single * means all unsafe sysctls are allowed. Kubelet has to whitelist all allowed unsafe sysctls explicitly to avoid rejection.  Examples: e.g. \"foo/_*\" allows \"foo/bar\", \"foo/baz\", etc. e.g. \"foo.*\" allows \"foo.bar\", \"foo.baz\", etc.")
+          "allowedUnsafeSysctls is a list of explicitly allowed unsafe sysctls, defaults to none. Each entry is either a plain sysctl name or ends in \"*\" in which case it is considered as a prefix of allowed sysctls. Single * means all unsafe sysctls are allowed. Kubelet has to allowlist all allowed unsafe sysctls explicitly to avoid rejection.  Examples: e.g. \"foo/_*\" allows \"foo/bar\", \"foo/baz\", etc. e.g. \"foo.*\" allows \"foo.bar\", \"foo.baz\", etc.")
   public List<String> getAllowedUnsafeSysctls() {
     return allowedUnsafeSysctls;
   }
@@ -389,7 +389,7 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addDefaultAddCapabilitiesItem(
       String defaultAddCapabilitiesItem) {
     if (this.defaultAddCapabilities == null) {
-      this.defaultAddCapabilities = new ArrayList<String>();
+      this.defaultAddCapabilities = new ArrayList<>();
     }
     this.defaultAddCapabilities.add(defaultAddCapabilitiesItem);
     return this;
@@ -448,7 +448,7 @@ public class V1beta1PodSecurityPolicySpec {
 
   public V1beta1PodSecurityPolicySpec addForbiddenSysctlsItem(String forbiddenSysctlsItem) {
     if (this.forbiddenSysctls == null) {
-      this.forbiddenSysctls = new ArrayList<String>();
+      this.forbiddenSysctls = new ArrayList<>();
     }
     this.forbiddenSysctls.add(forbiddenSysctlsItem);
     return this;
@@ -569,7 +569,7 @@ public class V1beta1PodSecurityPolicySpec {
 
   public V1beta1PodSecurityPolicySpec addHostPortsItem(V1beta1HostPortRange hostPortsItem) {
     if (this.hostPorts == null) {
-      this.hostPorts = new ArrayList<V1beta1HostPortRange>();
+      this.hostPorts = new ArrayList<>();
     }
     this.hostPorts.add(hostPortsItem);
     return this;
@@ -648,7 +648,7 @@ public class V1beta1PodSecurityPolicySpec {
   public V1beta1PodSecurityPolicySpec addRequiredDropCapabilitiesItem(
       String requiredDropCapabilitiesItem) {
     if (this.requiredDropCapabilities == null) {
-      this.requiredDropCapabilities = new ArrayList<String>();
+      this.requiredDropCapabilities = new ArrayList<>();
     }
     this.requiredDropCapabilities.add(requiredDropCapabilitiesItem);
     return this;
@@ -784,22 +784,22 @@ public class V1beta1PodSecurityPolicySpec {
 
   public V1beta1PodSecurityPolicySpec addVolumesItem(String volumesItem) {
     if (this.volumes == null) {
-      this.volumes = new ArrayList<String>();
+      this.volumes = new ArrayList<>();
     }
     this.volumes.add(volumesItem);
     return this;
   }
 
   /**
-   * volumes is a white list of allowed volume plugins. Empty indicates that no volumes may be used.
-   * To allow all volumes you may use &#39;*&#39;.
+   * volumes is an allowlist of volume plugins. Empty indicates that no volumes may be used. To
+   * allow all volumes you may use &#39;*&#39;.
    *
    * @return volumes
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "volumes is a white list of allowed volume plugins. Empty indicates that no volumes may be used. To allow all volumes you may use '*'.")
+          "volumes is an allowlist of volume plugins. Empty indicates that no volumes may be used. To allow all volumes you may use '*'.")
   public List<String> getVolumes() {
     return volumes;
   }

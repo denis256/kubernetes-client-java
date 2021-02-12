@@ -51,6 +51,7 @@ public class KubectlDrain extends KubectlCordon {
   @Override
   public V1Node execute() throws KubectlException {
     try {
+      refreshDiscovery();
       return doDrain();
     } catch (ApiException | IOException ex) {
       throw new KubectlException(ex);
@@ -66,6 +67,7 @@ public class KubectlDrain extends KubectlCordon {
             null,
             null,
             "spec.nodeName=" + node.getMetadata().getName(),
+            null,
             null,
             null,
             null,
@@ -102,14 +104,14 @@ public class KubectlDrain extends KubectlCordon {
 
   private void deletePod(CoreV1Api api, String name, String namespace)
       throws ApiException, IOException, KubectlException {
-    api.deleteNamespacedPod(name, namespace, null, null, null, null, null, null);
+    api.deleteNamespacedPod(name, namespace, null, null, this.timeoutSeconds, null, null, null);
     waitForPodDelete(api, name, namespace);
   }
 
   private void waitForPodDelete(CoreV1Api api, String name, String namespace)
-      throws ApiException, IOException, KubectlException {
+      throws KubectlException {
     long start = System.currentTimeMillis();
-    while (System.currentTimeMillis() - start < timeoutSeconds * 1000) {
+    do {
       try {
         api.readNamespacedPod(name, namespace, null, null, null);
       } catch (ApiException ex) {
@@ -118,7 +120,7 @@ public class KubectlDrain extends KubectlCordon {
         }
         throw new KubectlException(ex);
       }
-    }
+    } while (System.currentTimeMillis() - start < timeoutSeconds * 1000);
     throw new KubectlException("Timed out waiting for Pod delete.");
   }
 }

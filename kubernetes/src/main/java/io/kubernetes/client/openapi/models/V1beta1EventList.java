@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -23,7 +23,7 @@ import java.util.Objects;
 @ApiModel(description = "EventList is a list of Event objects.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1beta1EventList implements io.kubernetes.client.common.KubernetesListObject {
   public static final String SERIALIZED_NAME_API_VERSION = "apiVersion";
 
@@ -33,7 +33,7 @@ public class V1beta1EventList implements io.kubernetes.client.common.KubernetesL
   public static final String SERIALIZED_NAME_ITEMS = "items";
 
   @SerializedName(SERIALIZED_NAME_ITEMS)
-  private List<V1beta1Event> items = new ArrayList<V1beta1Event>();
+  private List<V1beta1Event> items = new ArrayList<>();
 
   public static final String SERIALIZED_NAME_KIND = "kind";
 
@@ -83,11 +83,11 @@ public class V1beta1EventList implements io.kubernetes.client.common.KubernetesL
   }
 
   /**
-   * Items is a list of schema objects.
+   * items is a list of schema objects.
    *
    * @return items
    */
-  @ApiModelProperty(required = true, value = "Items is a list of schema objects.")
+  @ApiModelProperty(required = true, value = "items is a list of schema objects.")
   public List<V1beta1Event> getItems() {
     return items;
   }

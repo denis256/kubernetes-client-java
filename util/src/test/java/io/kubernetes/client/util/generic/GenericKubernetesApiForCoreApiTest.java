@@ -19,7 +19,11 @@ import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import com.google.gson.Gson;
 import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
-import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.openapi.models.V1ListMeta;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodList;
+import io.kubernetes.client.openapi.models.V1Status;
 import io.kubernetes.client.util.ClientBuilder;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
@@ -92,7 +96,7 @@ public class GenericKubernetesApiForCoreApiTest {
     V1PodList podList = new V1PodList().kind("PodList").metadata(new V1ListMeta());
 
     stubFor(
-        get(urlEqualTo("/api/v1/namespaces/default/pods"))
+        get(urlPathEqualTo("/api/v1/namespaces/default/pods"))
             .willReturn(aResponse().withStatus(200).withBody(new Gson().toJson(podList))));
     KubernetesApiResponse<V1PodList> podListResp = podClient.list("default");
     assertTrue(podListResp.isSuccess());

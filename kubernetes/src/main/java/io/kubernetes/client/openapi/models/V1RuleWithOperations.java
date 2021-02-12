@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.Objects;
         "RuleWithOperations is a tuple of Operations and Resources. It is recommended to make sure that all the tuple expansions are valid.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1RuleWithOperations {
   public static final String SERIALIZED_NAME_API_GROUPS = "apiGroups";
 
@@ -63,7 +63,7 @@ public class V1RuleWithOperations {
 
   public V1RuleWithOperations addApiGroupsItem(String apiGroupsItem) {
     if (this.apiGroups == null) {
-      this.apiGroups = new ArrayList<String>();
+      this.apiGroups = new ArrayList<>();
     }
     this.apiGroups.add(apiGroupsItem);
     return this;
@@ -95,7 +95,7 @@ public class V1RuleWithOperations {
 
   public V1RuleWithOperations addApiVersionsItem(String apiVersionsItem) {
     if (this.apiVersions == null) {
-      this.apiVersions = new ArrayList<String>();
+      this.apiVersions = new ArrayList<>();
     }
     this.apiVersions.add(apiVersionsItem);
     return this;
@@ -127,22 +127,23 @@ public class V1RuleWithOperations {
 
   public V1RuleWithOperations addOperationsItem(String operationsItem) {
     if (this.operations == null) {
-      this.operations = new ArrayList<String>();
+      this.operations = new ArrayList<>();
     }
     this.operations.add(operationsItem);
     return this;
   }
 
   /**
-   * Operations is the operations the admission hook cares about - CREATE, UPDATE, or * for all
-   * operations. If &#39;*&#39; is present, the length of the slice must be one. Required.
+   * Operations is the operations the admission hook cares about - CREATE, UPDATE, DELETE, CONNECT
+   * or * for all of those operations and any future admission operations that are added. If
+   * &#39;*&#39; is present, the length of the slice must be one. Required.
    *
    * @return operations
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "Operations is the operations the admission hook cares about - CREATE, UPDATE, or * for all operations. If '*' is present, the length of the slice must be one. Required.")
+          "Operations is the operations the admission hook cares about - CREATE, UPDATE, DELETE, CONNECT or * for all of those operations and any future admission operations that are added. If '*' is present, the length of the slice must be one. Required.")
   public List<String> getOperations() {
     return operations;
   }
@@ -159,7 +160,7 @@ public class V1RuleWithOperations {
 
   public V1RuleWithOperations addResourcesItem(String resourcesItem) {
     if (this.resources == null) {
-      this.resources = new ArrayList<String>();
+      this.resources = new ArrayList<>();
     }
     this.resources.add(resourcesItem);
     return this;

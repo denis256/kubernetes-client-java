@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.Objects;
         "Secret holds secret data of a certain type. The total bytes of the values in the Data field must be less than MaxSecretSize bytes.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1Secret implements io.kubernetes.client.common.KubernetesObject {
   public static final String SERIALIZED_NAME_API_VERSION = "apiVersion";
 
@@ -99,7 +99,7 @@ public class V1Secret implements io.kubernetes.client.common.KubernetesObject {
 
   public V1Secret putDataItem(String key, byte[] dataItem) {
     if (this.data == null) {
-      this.data = new HashMap<String, byte[]>();
+      this.data = new HashMap<>();
     }
     this.data.put(key, dataItem);
     return this;
@@ -134,14 +134,14 @@ public class V1Secret implements io.kubernetes.client.common.KubernetesObject {
   /**
    * Immutable, if set to true, ensures that data stored in the Secret cannot be updated (only
    * object metadata can be modified). If not set to true, the field can be modified at any time.
-   * Defaulted to nil. This is an alpha field enabled by ImmutableEphemeralVolumes feature gate.
+   * Defaulted to nil. This is a beta field enabled by ImmutableEphemeralVolumes feature gate.
    *
    * @return immutable
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "Immutable, if set to true, ensures that data stored in the Secret cannot be updated (only object metadata can be modified). If not set to true, the field can be modified at any time. Defaulted to nil. This is an alpha field enabled by ImmutableEphemeralVolumes feature gate.")
+          "Immutable, if set to true, ensures that data stored in the Secret cannot be updated (only object metadata can be modified). If not set to true, the field can be modified at any time. Defaulted to nil. This is a beta field enabled by ImmutableEphemeralVolumes feature gate.")
   public Boolean getImmutable() {
     return immutable;
   }
@@ -205,7 +205,7 @@ public class V1Secret implements io.kubernetes.client.common.KubernetesObject {
 
   public V1Secret putStringDataItem(String key, String stringDataItem) {
     if (this.stringData == null) {
-      this.stringData = new HashMap<String, String>();
+      this.stringData = new HashMap<>();
     }
     this.stringData.put(key, stringDataItem);
     return this;

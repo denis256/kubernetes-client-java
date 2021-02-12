@@ -19,10 +19,13 @@ import io.kubernetes.client.informer.ListerWatcher;
 import io.kubernetes.client.openapi.models.V1ListMeta;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.util.CallGeneratorParams;
+import io.kubernetes.client.util.Strings;
 import io.kubernetes.client.util.Watchable;
+import java.io.IOException;
 import java.net.ConnectException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import org.slf4j.Logger;
@@ -71,7 +74,9 @@ public class ReflectorRunnable<
     log.info("{}#Start listing and watching...", apiTypeClass);
 
     try {
-      ApiListType list = listerWatcher.list(new CallGeneratorParams(Boolean.FALSE, null, null));
+      ApiListType list =
+          listerWatcher.list(
+              new CallGeneratorParams(Boolean.FALSE, getRelistResourceVersion(), null));
 
       V1ListMeta listMeta = list.getMetadata();
       String resourceVersion = listMeta.getResourceVersion();
@@ -88,10 +93,8 @@ public class ReflectorRunnable<
       }
       while (true) {
         if (!isActive.get()) {
-          if (watch != null) {
-            watch.close();
-            return;
-          }
+          closeWatch();
+          return;
         }
 
         try {
@@ -99,13 +102,21 @@ public class ReflectorRunnable<
             log.debug(
                 "{}#Start watch with resource version {}", apiTypeClass, lastSyncResourceVersion);
           }
-          watch =
+          Watchable<ApiType> newWatch =
               listerWatcher.watch(
                   new CallGeneratorParams(
                       Boolean.TRUE,
                       lastSyncResourceVersion,
-                      Long.valueOf(Duration.ofMinutes(5).toMillis()).intValue()));
-          watchHandler(watch);
+                      Long.valueOf(Duration.ofMinutes(5).getSeconds()).intValue()));
+
+          synchronized (this) {
+            if (!isActive.get()) {
+              newWatch.close();
+              continue;
+            }
+            watch = newWatch;
+          }
+          watchHandler(newWatch);
         } catch (Throwable t) {
           if (isConnectException(t)) {
             // If this is "connection refused" error, it means that most likely
@@ -132,10 +143,7 @@ public class ReflectorRunnable<
           this.exceptionHandler.accept(apiTypeClass, t);
           return;
         } finally {
-          if (watch != null) {
-            watch.close();
-            watch = null;
-          }
+          closeWatch();
         }
       }
     } catch (Throwable t) {
@@ -144,7 +152,19 @@ public class ReflectorRunnable<
   }
 
   public void stop() {
-    isActive.set(false);
+    try {
+      isActive.set(false);
+      closeWatch();
+    } catch (Throwable t) {
+      this.exceptionHandler.accept(apiTypeClass, t);
+    }
+  }
+
+  private synchronized void closeWatch() throws IOException {
+    if (watch != null) {
+      watch.close();
+      watch = null;
+    }
   }
 
   private void syncWith(List<? extends KubernetesObject> items, String resourceVersion) {
@@ -156,16 +176,23 @@ public class ReflectorRunnable<
     return lastSyncResourceVersion;
   }
 
+  private String getRelistResourceVersion() {
+    if (Strings.isNullOrEmpty(lastSyncResourceVersion)) {
+      return "0";
+    }
+    return lastSyncResourceVersion;
+  }
+
   private void watchHandler(Watchable<ApiType> watch) {
     while (watch.hasNext()) {
       io.kubernetes.client.util.Watch.Response<ApiType> item = watch.next();
 
-      EventType eventType = EventType.getByType(item.type);
-      if (eventType == null) {
+      Optional<EventType> eventType = EventType.findByType(item.type);
+      if (!eventType.isPresent()) {
         log.error("unrecognized event {}", item);
         continue;
       }
-      if (eventType == EventType.ERROR) {
+      if (eventType.get() == EventType.ERROR) {
         String errorMessage =
             String.format("got ERROR event and its status: %s", item.status.toString());
         log.error(errorMessage);
@@ -177,7 +204,7 @@ public class ReflectorRunnable<
       V1ObjectMeta meta = obj.getMetadata();
 
       String newResourceVersion = meta.getResourceVersion();
-      switch (eventType) {
+      switch (eventType.get()) {
         case ADDED:
           store.add(obj);
           break;

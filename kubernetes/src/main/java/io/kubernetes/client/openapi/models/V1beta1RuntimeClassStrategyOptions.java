@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,13 +28,13 @@ import java.util.Objects;
         "RuntimeClassStrategyOptions define the strategy that will dictate the allowable RuntimeClasses for a pod.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1beta1RuntimeClassStrategyOptions {
   public static final String SERIALIZED_NAME_ALLOWED_RUNTIME_CLASS_NAMES =
       "allowedRuntimeClassNames";
 
   @SerializedName(SERIALIZED_NAME_ALLOWED_RUNTIME_CLASS_NAMES)
-  private List<String> allowedRuntimeClassNames = new ArrayList<String>();
+  private List<String> allowedRuntimeClassNames = new ArrayList<>();
 
   public static final String SERIALIZED_NAME_DEFAULT_RUNTIME_CLASS_NAME = "defaultRuntimeClassName";
 
@@ -55,16 +55,16 @@ public class V1beta1RuntimeClassStrategyOptions {
   }
 
   /**
-   * allowedRuntimeClassNames is a whitelist of RuntimeClass names that may be specified on a pod. A
-   * value of \&quot;*\&quot; means that any RuntimeClass name is allowed, and must be the only item
-   * in the list. An empty list requires the RuntimeClassName field to be unset.
+   * allowedRuntimeClassNames is an allowlist of RuntimeClass names that may be specified on a pod.
+   * A value of \&quot;*\&quot; means that any RuntimeClass name is allowed, and must be the only
+   * item in the list. An empty list requires the RuntimeClassName field to be unset.
    *
    * @return allowedRuntimeClassNames
    */
   @ApiModelProperty(
       required = true,
       value =
-          "allowedRuntimeClassNames is a whitelist of RuntimeClass names that may be specified on a pod. A value of \"*\" means that any RuntimeClass name is allowed, and must be the only item in the list. An empty list requires the RuntimeClassName field to be unset.")
+          "allowedRuntimeClassNames is an allowlist of RuntimeClass names that may be specified on a pod. A value of \"*\" means that any RuntimeClass name is allowed, and must be the only item in the list. An empty list requires the RuntimeClassName field to be unset.")
   public List<String> getAllowedRuntimeClassNames() {
     return allowedRuntimeClassNames;
   }

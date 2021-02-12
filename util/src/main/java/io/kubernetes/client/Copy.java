@@ -12,11 +12,11 @@ limitations under the License.
 */
 package io.kubernetes.client;
 
-import com.google.common.io.ByteStreams;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.util.Streams;
 import io.kubernetes.client.util.exception.CopyNotSupportedException;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -30,6 +30,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.codec.binary.Base64InputStream;
 import org.apache.commons.codec.binary.Base64OutputStream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
@@ -39,6 +42,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,7 +96,7 @@ public class Copy extends Exec {
       throws ApiException, IOException {
     try (InputStream is = copyFileFromPod(namespace, name, container, srcPath);
         FileOutputStream fos = new FileOutputStream(destination.toFile())) {
-      ByteStreams.copy(is, fos);
+      Streams.copy(is, fos);
       fos.flush();
     }
   }
@@ -153,6 +157,21 @@ public class Copy extends Exec {
       createDirectoryStructureFromTree(tree, namespace, pod, container, srcPath, destination);
       return;
     }
+    Future<Integer> future =
+        copyDirectoryFromPodAsync(namespace, pod, container, srcPath, destination);
+    try {
+      int code = future.get().intValue();
+      if (code != 0) {
+        throw new IOException("Copy failed (" + code + ")");
+      }
+    } catch (InterruptedException | ExecutionException ex) {
+      throw new IOException(ex);
+    }
+  }
+
+  public Future<Integer> copyDirectoryFromPodAsync(
+      String namespace, String pod, String container, String srcPath, Path destination)
+      throws IOException, ApiException {
     final Process proc =
         this.exec(
             namespace,
@@ -170,7 +189,11 @@ public class Copy extends Exec {
           log.error("Can't read: " + entry);
           continue;
         }
-        File f = new File(destination.toFile(), entry.getName());
+        String normalName = FilenameUtils.normalize(entry.getName());
+        if (normalName == null) {
+          throw new IOException("Invalid entry: " + entry.getName());
+        }
+        File f = new File(destination.toFile(), normalName);
         if (entry.isDirectory()) {
           if (!f.isDirectory() && !f.mkdirs()) {
             throw new IOException("create directory failed: " + f);
@@ -181,20 +204,13 @@ public class Copy extends Exec {
             throw new IOException("create directory failed: " + parent);
           }
           try (OutputStream fs = new FileOutputStream(f)) {
-            ByteStreams.copy(archive, fs);
+            Streams.copy(archive, fs);
             fs.flush();
           }
         }
       }
     }
-    try {
-      int status = proc.waitFor();
-      if (status != 0) {
-        throw new IOException("Copy command failed with status " + status);
-      }
-    } catch (InterruptedException ex) {
-      throw new IOException(ex);
-    }
+    return new ProcessFuture(proc);
   }
 
   // This creates directories and files using tree of files and directories under container
@@ -234,7 +250,7 @@ public class Copy extends Exec {
         String modifiedSrcPath = genericPathBuilder(srcPath, childNode.name);
         try (InputStream is = copyFileFromPod(namespace, pod, modifiedSrcPath);
             OutputStream fs = new FileOutputStream(f)) {
-          ByteStreams.copy(is, fs);
+          Streams.copy(is, fs);
           fs.flush();
         }
       } else {
@@ -321,7 +337,7 @@ public class Copy extends Exec {
     Copy c = new Copy();
     try (InputStream is = c.copyFileFromPod(namespace, pod, null, srcPath);
         FileOutputStream os = new FileOutputStream(dest.toFile())) {
-      ByteStreams.copy(is, os);
+      Streams.copy(is, os);
       os.flush();
     }
   }
@@ -330,6 +346,19 @@ public class Copy extends Exec {
       String namespace, String pod, String container, Path srcPath, Path destPath)
       throws ApiException, IOException {
 
+    try {
+      int exit = copyFileToPodAsync(namespace, pod, container, srcPath, destPath).get();
+      if (exit != 0) {
+        throw new IOException("Failed to copy: " + exit);
+      }
+    } catch (InterruptedException | ExecutionException ex) {
+      throw new IOException(ex);
+    }
+  }
+
+  public Future<Integer> copyFileToPodAsync(
+      String namespace, String pod, String container, Path srcPath, Path destPath)
+      throws ApiException, IOException {
     // Run decoding and extracting processes
     final Process proc = execCopyToPod(namespace, pod, container, destPath);
 
@@ -342,17 +371,29 @@ public class Copy extends Exec {
       ArchiveEntry tarEntry = new TarArchiveEntry(srcFile, destPath.getFileName().toString());
 
       archiveOutputStream.putArchiveEntry(tarEntry);
-      ByteStreams.copy(input, archiveOutputStream);
+      Streams.copy(input, archiveOutputStream);
       archiveOutputStream.closeArchiveEntry();
-    } finally {
-      proc.destroy();
+
+      return new ProcessFuture(proc);
     }
   }
 
   public void copyFileToPod(
       String namespace, String pod, String container, byte[] src, Path destPath)
       throws ApiException, IOException {
+    try {
+      int exit = copyFileToPodAsync(namespace, pod, container, src, destPath).get();
+      if (exit != 0) {
+        throw new IOException("Copy failed: " + exit);
+      }
+    } catch (InterruptedException | ExecutionException ex) {
+      throw new IOException(ex);
+    }
+  }
 
+  public Future<Integer> copyFileToPodAsync(
+      String namespace, String pod, String container, byte[] src, Path destPath)
+      throws ApiException, IOException {
     // Run decoding and extracting processes
     final Process proc = execCopyToPod(namespace, pod, container, destPath);
 
@@ -363,10 +404,10 @@ public class Copy extends Exec {
       ((TarArchiveEntry) tarEntry).setSize(src.length);
 
       archiveOutputStream.putArchiveEntry(tarEntry);
-      ByteStreams.copy(new ByteArrayInputStream(src), archiveOutputStream);
+      Streams.copy(new ByteArrayInputStream(src), archiveOutputStream);
       archiveOutputStream.closeArchiveEntry();
-    } finally {
-      proc.destroy();
+
+      return new ProcessFuture(proc);
     }
   }
 
@@ -395,6 +436,39 @@ public class Copy extends Exec {
       throw new IOException(ex);
     } finally {
       proc.destroy();
+    }
+  }
+
+  private static class ProcessFuture implements Future<Integer> {
+    private Process proc;
+
+    ProcessFuture(Process proc) {
+      this.proc = proc;
+    }
+
+    // TODO: support cancelling?
+    public boolean cancel(boolean interupt) {
+      return false;
+    }
+
+    public boolean isCancelled() {
+      return false;
+    }
+
+    public Integer get() throws InterruptedException {
+      proc.waitFor();
+      proc.destroy();
+      return proc.exitValue();
+    }
+
+    public Integer get(long timeout, TimeUnit unit) throws InterruptedException {
+      proc.waitFor(timeout, unit);
+      proc.destroy();
+      return proc.exitValue();
+    }
+
+    public boolean isDone() {
+      return proc.isAlive();
     }
   }
 }

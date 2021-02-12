@@ -12,21 +12,30 @@ limitations under the License.
 */
 package io.kubernetes.client.util;
 
-import static io.kubernetes.client.util.Config.*;
+import static io.kubernetes.client.util.Config.ENV_KUBECONFIG;
+import static io.kubernetes.client.util.Config.ENV_SERVICE_HOST;
+import static io.kubernetes.client.util.Config.ENV_SERVICE_PORT;
+import static io.kubernetes.client.util.Config.SERVICEACCOUNT_CA_PATH;
+import static io.kubernetes.client.util.Config.SERVICEACCOUNT_TOKEN_PATH;
 import static io.kubernetes.client.util.KubeConfig.ENV_HOME;
 import static io.kubernetes.client.util.KubeConfig.KUBECONFIG;
 import static io.kubernetes.client.util.KubeConfig.KUBEDIR;
 
 import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.openapi.models.V1CertificateSigningRequest;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.Authentication;
+import io.kubernetes.client.util.credentials.ClientCertificateAuthentication;
 import io.kubernetes.client.util.credentials.KubeconfigAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
+import io.kubernetes.client.util.exception.CSRNotApprovedException;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URI;
@@ -35,8 +44,12 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.PrivateKey;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import okhttp3.Protocol;
+import org.apache.commons.compress.utils.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +61,12 @@ public class ClientBuilder {
   private byte[] caCertBytes = null;
   private boolean verifyingSsl = true;
   private Authentication authentication;
+  // defaulting client protocols to HTTP1.1 and HTTP 2
+  private List<Protocol> protocols = Arrays.asList(Protocol.HTTP_2, Protocol.HTTP_1_1);
+  // default to unlimited read timeout
+  private Duration readTimeout = Duration.ZERO;
+  // default health check is once a minute
+  private Duration pingInterval = Duration.ofMinutes(1);
 
   /**
    * Creates an {@link ApiClient} by calling {@link #standard()} and {@link #build()}.
@@ -277,6 +296,57 @@ public class ClientBuilder {
     return builder;
   }
 
+  /**
+   * Returns a new ApiClient instance reading from CertificateSigningRequest.
+   *
+   * <p>It will create a CertificateSigningRequest object to the cluster if it doesn't exist, and
+   * waits until the request is approved.
+   *
+   * @param bootstrapKubeConfig the bootstrap kube config
+   * @param privateKey the private key
+   * @param csr the csr
+   * @return the api client
+   * @throws IOException the io exception
+   * @throws CSRNotApprovedException the csr not approved exception
+   * @throws ApiException the api exception
+   */
+  public static ApiClient fromCertificateSigningRequest(
+      KubeConfig bootstrapKubeConfig, PrivateKey privateKey, V1CertificateSigningRequest csr)
+      throws IOException, CSRNotApprovedException, ApiException {
+    // creates CSR or checks whether the existing one conflicts.
+    ApiClient bootstrapApiClient = ClientBuilder.kubeconfig(bootstrapKubeConfig).build();
+    return fromCertificateSigningRequest(bootstrapApiClient, privateKey, csr);
+  }
+
+  /**
+   * Returns a new ApiClient instance reading from CertificateSigningRequest.
+   *
+   * <p>It will create a CertificateSigningRequest object to the cluster if it doesn't exist, and
+   * waits until the request is approved.
+   *
+   * @param bootstrapApiClient the bootstrap api client
+   * @param privateKey the private key
+   * @param csr the csr
+   * @return the api client
+   * @throws IOException the io exception
+   * @throws CSRNotApprovedException the csr not approved exception
+   * @throws ApiException the api exception
+   */
+  public static ApiClient fromCertificateSigningRequest(
+      ApiClient bootstrapApiClient, PrivateKey privateKey, V1CertificateSigningRequest csr)
+      throws IOException, CSRNotApprovedException, ApiException {
+    byte[] certificateData = CSRUtils.createAndWaitUntilCertificateSigned(bootstrapApiClient, csr);
+    InputStream is = bootstrapApiClient.getSslCaCert();
+    is.reset();
+    ClientBuilder newBuilder = new ClientBuilder();
+    newBuilder.setAuthentication(
+        new ClientCertificateAuthentication(certificateData, SSLUtils.dumpKey(privateKey)));
+    newBuilder.setBasePath(bootstrapApiClient.getBasePath());
+    newBuilder.setVerifyingSsl(bootstrapApiClient.isVerifyingSsl());
+    newBuilder.setCertificateAuthority(IOUtils.toByteArray(is));
+    return newBuilder.build();
+  }
+
   public String getBasePath() {
     return basePath;
   }
@@ -309,12 +379,44 @@ public class ClientBuilder {
     return this;
   }
 
+  public ClientBuilder setProtocols(List<Protocol> protocols) {
+    this.protocols = protocols;
+    return this;
+  }
+
+  public List<Protocol> getProtocols() {
+    return protocols;
+  }
+
+  public ClientBuilder setReadTimeout(Duration readTimeout) {
+    this.readTimeout = readTimeout;
+    return this;
+  }
+
+  public Duration getReadTimeout() {
+    return this.readTimeout;
+  }
+
+  public ClientBuilder setPingInterval(Duration pingInterval) {
+    this.pingInterval = pingInterval;
+    return this;
+  }
+
+  public Duration getPingInterval() {
+    return this.pingInterval;
+  }
+
   public ApiClient build() {
     final ApiClient client = new ApiClient();
 
-    // defaulting client protocols to HTTP1.1
     client.setHttpClient(
-        client.getHttpClient().newBuilder().protocols(Arrays.asList(Protocol.HTTP_1_1)).build());
+        client
+            .getHttpClient()
+            .newBuilder()
+            .protocols(protocols)
+            .readTimeout(this.readTimeout)
+            .pingInterval(pingInterval)
+            .build());
 
     if (basePath != null) {
       if (basePath.endsWith("/")) {

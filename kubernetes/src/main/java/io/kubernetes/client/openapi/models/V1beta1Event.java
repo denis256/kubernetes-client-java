@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,19 +15,22 @@ package io.kubernetes.client.openapi.models;
 import com.google.gson.annotations.SerializedName;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import java.time.OffsetDateTime;
 import java.util.Objects;
-import org.joda.time.DateTime;
 
 /**
  * Event is a report of an event somewhere in the cluster. It generally denotes some state change in
- * the system.
+ * the system. Events have a limited retention time and triggers and messages may evolve with time.
+ * Event consumers should not rely on the timing of an event with a given Reason reflecting a
+ * consistent underlying trigger, or the continued existence of events with that Reason. Events
+ * should be treated as informative, best-effort, supplemental data.
  */
 @ApiModel(
     description =
-        "Event is a report of an event somewhere in the cluster. It generally denotes some state change in the system.")
+        "Event is a report of an event somewhere in the cluster. It generally denotes some state change in the system. Events have a limited retention time and triggers and messages may evolve with time.  Event consumers should not rely on the timing of an event with a given Reason reflecting a consistent underlying trigger, or the continued existence of events with that Reason.  Events should be treated as informative, best-effort, supplemental data.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1beta1Event implements io.kubernetes.client.common.KubernetesObject {
   public static final String SERIALIZED_NAME_ACTION = "action";
 
@@ -48,12 +51,12 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
       "deprecatedFirstTimestamp";
 
   @SerializedName(SERIALIZED_NAME_DEPRECATED_FIRST_TIMESTAMP)
-  private DateTime deprecatedFirstTimestamp;
+  private OffsetDateTime deprecatedFirstTimestamp;
 
   public static final String SERIALIZED_NAME_DEPRECATED_LAST_TIMESTAMP = "deprecatedLastTimestamp";
 
   @SerializedName(SERIALIZED_NAME_DEPRECATED_LAST_TIMESTAMP)
-  private DateTime deprecatedLastTimestamp;
+  private OffsetDateTime deprecatedLastTimestamp;
 
   public static final String SERIALIZED_NAME_DEPRECATED_SOURCE = "deprecatedSource";
 
@@ -63,7 +66,7 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   public static final String SERIALIZED_NAME_EVENT_TIME = "eventTime";
 
   @SerializedName(SERIALIZED_NAME_EVENT_TIME)
-  private DateTime eventTime;
+  private OffsetDateTime eventTime;
 
   public static final String SERIALIZED_NAME_KIND = "kind";
 
@@ -122,12 +125,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * What action was taken/failed regarding to the regarding object.
+   * action is what action was taken/failed regarding to the regarding object. It is
+   * machine-readable. This field can have at most 128 characters.
    *
    * @return action
    */
   @javax.annotation.Nullable
-  @ApiModelProperty(value = "What action was taken/failed regarding to the regarding object.")
+  @ApiModelProperty(
+      value =
+          "action is what action was taken/failed regarding to the regarding object. It is machine-readable. This field can have at most 128 characters.")
   public String getAction() {
     return action;
   }
@@ -169,13 +175,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * Deprecated field assuring backward compatibility with core.v1 Event type
+   * deprecatedCount is the deprecated field assuring backward compatibility with core.v1 Event
+   * type.
    *
    * @return deprecatedCount
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
-      value = "Deprecated field assuring backward compatibility with core.v1 Event type")
+      value =
+          "deprecatedCount is the deprecated field assuring backward compatibility with core.v1 Event type.")
   public Integer getDeprecatedCount() {
     return deprecatedCount;
   }
@@ -184,47 +192,51 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
     this.deprecatedCount = deprecatedCount;
   }
 
-  public V1beta1Event deprecatedFirstTimestamp(DateTime deprecatedFirstTimestamp) {
+  public V1beta1Event deprecatedFirstTimestamp(OffsetDateTime deprecatedFirstTimestamp) {
 
     this.deprecatedFirstTimestamp = deprecatedFirstTimestamp;
     return this;
   }
 
   /**
-   * Deprecated field assuring backward compatibility with core.v1 Event type
+   * deprecatedFirstTimestamp is the deprecated field assuring backward compatibility with core.v1
+   * Event type.
    *
    * @return deprecatedFirstTimestamp
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
-      value = "Deprecated field assuring backward compatibility with core.v1 Event type")
-  public DateTime getDeprecatedFirstTimestamp() {
+      value =
+          "deprecatedFirstTimestamp is the deprecated field assuring backward compatibility with core.v1 Event type.")
+  public OffsetDateTime getDeprecatedFirstTimestamp() {
     return deprecatedFirstTimestamp;
   }
 
-  public void setDeprecatedFirstTimestamp(DateTime deprecatedFirstTimestamp) {
+  public void setDeprecatedFirstTimestamp(OffsetDateTime deprecatedFirstTimestamp) {
     this.deprecatedFirstTimestamp = deprecatedFirstTimestamp;
   }
 
-  public V1beta1Event deprecatedLastTimestamp(DateTime deprecatedLastTimestamp) {
+  public V1beta1Event deprecatedLastTimestamp(OffsetDateTime deprecatedLastTimestamp) {
 
     this.deprecatedLastTimestamp = deprecatedLastTimestamp;
     return this;
   }
 
   /**
-   * Deprecated field assuring backward compatibility with core.v1 Event type
+   * deprecatedLastTimestamp is the deprecated field assuring backward compatibility with core.v1
+   * Event type.
    *
    * @return deprecatedLastTimestamp
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
-      value = "Deprecated field assuring backward compatibility with core.v1 Event type")
-  public DateTime getDeprecatedLastTimestamp() {
+      value =
+          "deprecatedLastTimestamp is the deprecated field assuring backward compatibility with core.v1 Event type.")
+  public OffsetDateTime getDeprecatedLastTimestamp() {
     return deprecatedLastTimestamp;
   }
 
-  public void setDeprecatedLastTimestamp(DateTime deprecatedLastTimestamp) {
+  public void setDeprecatedLastTimestamp(OffsetDateTime deprecatedLastTimestamp) {
     this.deprecatedLastTimestamp = deprecatedLastTimestamp;
   }
 
@@ -249,23 +261,25 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
     this.deprecatedSource = deprecatedSource;
   }
 
-  public V1beta1Event eventTime(DateTime eventTime) {
+  public V1beta1Event eventTime(OffsetDateTime eventTime) {
 
     this.eventTime = eventTime;
     return this;
   }
 
   /**
-   * Required. Time when this Event was first observed.
+   * eventTime is the time when this Event was first observed. It is required.
    *
    * @return eventTime
    */
-  @ApiModelProperty(required = true, value = "Required. Time when this Event was first observed.")
-  public DateTime getEventTime() {
+  @ApiModelProperty(
+      required = true,
+      value = "eventTime is the time when this Event was first observed. It is required.")
+  public OffsetDateTime getEventTime() {
     return eventTime;
   }
 
-  public void setEventTime(DateTime eventTime) {
+  public void setEventTime(OffsetDateTime eventTime) {
     this.eventTime = eventTime;
   }
 
@@ -306,8 +320,7 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
    *
    * @return metadata
    */
-  @javax.annotation.Nullable
-  @ApiModelProperty(value = "")
+  @ApiModelProperty(required = true, value = "")
   public V1ObjectMeta getMetadata() {
     return metadata;
   }
@@ -323,7 +336,7 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * Optional. A human-readable description of the status of this operation. Maximal length of the
+   * note is a human-readable description of the status of this operation. Maximal length of the
    * note is 1kB, but libraries should be prepared to handle values up to 64kB.
    *
    * @return note
@@ -331,7 +344,7 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "Optional. A human-readable description of the status of this operation. Maximal length of the note is 1kB, but libraries should be prepared to handle values up to 64kB.")
+          "note is a human-readable description of the status of this operation. Maximal length of the note is 1kB, but libraries should be prepared to handle values up to 64kB.")
   public String getNote() {
     return note;
   }
@@ -347,12 +360,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * Why the action was taken.
+   * reason is why the action was taken. It is human-readable. This field can have at most 128
+   * characters.
    *
    * @return reason
    */
   @javax.annotation.Nullable
-  @ApiModelProperty(value = "Why the action was taken.")
+  @ApiModelProperty(
+      value =
+          "reason is why the action was taken. It is human-readable. This field can have at most 128 characters.")
   public String getReason() {
     return reason;
   }
@@ -410,13 +426,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * Name of the controller that emitted this Event, e.g. &#x60;kubernetes.io/kubelet&#x60;.
+   * reportingController is the name of the controller that emitted this Event, e.g.
+   * &#x60;kubernetes.io/kubelet&#x60;. This field cannot be empty for new Events.
    *
    * @return reportingController
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
-      value = "Name of the controller that emitted this Event, e.g. `kubernetes.io/kubelet`.")
+      value =
+          "reportingController is the name of the controller that emitted this Event, e.g. `kubernetes.io/kubelet`. This field cannot be empty for new Events.")
   public String getReportingController() {
     return reportingController;
   }
@@ -432,12 +450,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * ID of the controller instance, e.g. &#x60;kubelet-xyzf&#x60;.
+   * reportingInstance is the ID of the controller instance, e.g. &#x60;kubelet-xyzf&#x60;. This
+   * field cannot be empty for new Events and it can have at most 128 characters.
    *
    * @return reportingInstance
    */
   @javax.annotation.Nullable
-  @ApiModelProperty(value = "ID of the controller instance, e.g. `kubelet-xyzf`.")
+  @ApiModelProperty(
+      value =
+          "reportingInstance is the ID of the controller instance, e.g. `kubelet-xyzf`. This field cannot be empty for new Events and it can have at most 128 characters.")
   public String getReportingInstance() {
     return reportingInstance;
   }
@@ -474,13 +495,15 @@ public class V1beta1Event implements io.kubernetes.client.common.KubernetesObjec
   }
 
   /**
-   * Type of this event (Normal, Warning), new types could be added in the future.
+   * type is the type of this event (Normal, Warning), new types could be added in the future. It is
+   * machine-readable.
    *
    * @return type
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
-      value = "Type of this event (Normal, Warning), new types could be added in the future.")
+      value =
+          "type is the type of this event (Normal, Warning), new types could be added in the future. It is machine-readable.")
   public String getType() {
     return type;
   }

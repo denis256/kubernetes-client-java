@@ -12,12 +12,17 @@ limitations under the License.
 */
 package io.kubernetes.client.util.credentials;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.okForContentType;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
-import com.google.common.io.Resources;
+import io.kubernetes.client.Resources;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
@@ -53,21 +58,21 @@ public class TokenFileAuthenticationTest {
         get(urlPathEqualTo("/api/v1/pods")).willReturn(okForContentType("application/json", "{}")));
     CoreV1Api api = new CoreV1Api();
 
-    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null);
+    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null, null);
     WireMock.verify(
         1,
         getRequestedFor(urlPathEqualTo("/api/v1/pods"))
             .withHeader("Authorization", equalTo("Bearer token1")));
 
     this.auth.setFile(SERVICEACCOUNT_TOKEN2_PATH);
-    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null);
+    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null, null);
     WireMock.verify(
         2,
         getRequestedFor(urlPathEqualTo("/api/v1/pods"))
             .withHeader("Authorization", equalTo("Bearer token1")));
 
     this.auth.setExpiry(Instant.now().minusSeconds(1));
-    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null);
+    api.listPodForAllNamespaces(null, null, null, null, null, null, null, null, null, null);
     WireMock.verify(
         1,
         getRequestedFor(urlPathEqualTo("/api/v1/pods"))

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -29,7 +29,7 @@ import java.util.Objects;
         "PodSecurityContext holds pod-level security attributes and common container settings. Some fields are also present in container.securityContext.  Field values of container.securityContext take precedence over field values of PodSecurityContext.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1PodSecurityContext {
   public static final String SERIALIZED_NAME_FS_GROUP = "fsGroup";
 
@@ -60,6 +60,11 @@ public class V1PodSecurityContext {
 
   @SerializedName(SERIALIZED_NAME_SE_LINUX_OPTIONS)
   private V1SELinuxOptions seLinuxOptions;
+
+  public static final String SERIALIZED_NAME_SECCOMP_PROFILE = "seccompProfile";
+
+  @SerializedName(SERIALIZED_NAME_SECCOMP_PROFILE)
+  private V1SeccompProfile seccompProfile;
 
   public static final String SERIALIZED_NAME_SUPPLEMENTAL_GROUPS = "supplementalGroups";
 
@@ -114,14 +119,14 @@ public class V1PodSecurityContext {
    * being exposed inside Pod. This field will only apply to volume types which support fsGroup
    * based ownership(and permissions). It will have no effect on ephemeral volume types such as:
    * secret, configmaps and emptydir. Valid values are \&quot;OnRootMismatch\&quot; and
-   * \&quot;Always\&quot;. If not specified defaults to \&quot;Always\&quot;.
+   * \&quot;Always\&quot;. If not specified, \&quot;Always\&quot; is used.
    *
    * @return fsGroupChangePolicy
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "fsGroupChangePolicy defines behavior of changing ownership and permission of the volume before being exposed inside Pod. This field will only apply to volume types which support fsGroup based ownership(and permissions). It will have no effect on ephemeral volume types such as: secret, configmaps and emptydir. Valid values are \"OnRootMismatch\" and \"Always\". If not specified defaults to \"Always\".")
+          "fsGroupChangePolicy defines behavior of changing ownership and permission of the volume before being exposed inside Pod. This field will only apply to volume types which support fsGroup based ownership(and permissions). It will have no effect on ephemeral volume types such as: secret, configmaps and emptydir. Valid values are \"OnRootMismatch\" and \"Always\". If not specified, \"Always\" is used.")
   public String getFsGroupChangePolicy() {
     return fsGroupChangePolicy;
   }
@@ -228,6 +233,27 @@ public class V1PodSecurityContext {
     this.seLinuxOptions = seLinuxOptions;
   }
 
+  public V1PodSecurityContext seccompProfile(V1SeccompProfile seccompProfile) {
+
+    this.seccompProfile = seccompProfile;
+    return this;
+  }
+
+  /**
+   * Get seccompProfile
+   *
+   * @return seccompProfile
+   */
+  @javax.annotation.Nullable
+  @ApiModelProperty(value = "")
+  public V1SeccompProfile getSeccompProfile() {
+    return seccompProfile;
+  }
+
+  public void setSeccompProfile(V1SeccompProfile seccompProfile) {
+    this.seccompProfile = seccompProfile;
+  }
+
   public V1PodSecurityContext supplementalGroups(List<Long> supplementalGroups) {
 
     this.supplementalGroups = supplementalGroups;
@@ -236,7 +262,7 @@ public class V1PodSecurityContext {
 
   public V1PodSecurityContext addSupplementalGroupsItem(Long supplementalGroupsItem) {
     if (this.supplementalGroups == null) {
-      this.supplementalGroups = new ArrayList<Long>();
+      this.supplementalGroups = new ArrayList<>();
     }
     this.supplementalGroups.add(supplementalGroupsItem);
     return this;
@@ -268,7 +294,7 @@ public class V1PodSecurityContext {
 
   public V1PodSecurityContext addSysctlsItem(V1Sysctl sysctlsItem) {
     if (this.sysctls == null) {
-      this.sysctls = new ArrayList<V1Sysctl>();
+      this.sysctls = new ArrayList<>();
     }
     this.sysctls.add(sysctlsItem);
     return this;
@@ -328,6 +354,7 @@ public class V1PodSecurityContext {
         && Objects.equals(this.runAsNonRoot, v1PodSecurityContext.runAsNonRoot)
         && Objects.equals(this.runAsUser, v1PodSecurityContext.runAsUser)
         && Objects.equals(this.seLinuxOptions, v1PodSecurityContext.seLinuxOptions)
+        && Objects.equals(this.seccompProfile, v1PodSecurityContext.seccompProfile)
         && Objects.equals(this.supplementalGroups, v1PodSecurityContext.supplementalGroups)
         && Objects.equals(this.sysctls, v1PodSecurityContext.sysctls)
         && Objects.equals(this.windowsOptions, v1PodSecurityContext.windowsOptions);
@@ -342,6 +369,7 @@ public class V1PodSecurityContext {
         runAsNonRoot,
         runAsUser,
         seLinuxOptions,
+        seccompProfile,
         supplementalGroups,
         sysctls,
         windowsOptions);
@@ -359,6 +387,7 @@ public class V1PodSecurityContext {
     sb.append("    runAsNonRoot: ").append(toIndentedString(runAsNonRoot)).append("\n");
     sb.append("    runAsUser: ").append(toIndentedString(runAsUser)).append("\n");
     sb.append("    seLinuxOptions: ").append(toIndentedString(seLinuxOptions)).append("\n");
+    sb.append("    seccompProfile: ").append(toIndentedString(seccompProfile)).append("\n");
     sb.append("    supplementalGroups: ").append(toIndentedString(supplementalGroups)).append("\n");
     sb.append("    sysctls: ").append(toIndentedString(sysctls)).append("\n");
     sb.append("    windowsOptions: ").append(toIndentedString(windowsOptions)).append("\n");

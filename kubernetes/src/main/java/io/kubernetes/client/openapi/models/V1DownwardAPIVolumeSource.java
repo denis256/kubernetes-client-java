@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.Objects;
         "DownwardAPIVolumeSource represents a volume containing downward API info. Downward API volumes support ownership management and SELinux relabeling.")
 @javax.annotation.Generated(
     value = "org.openapitools.codegen.languages.JavaClientCodegen",
-    date = "2020-07-29T18:17:00.375Z[Etc/UTC]")
+    date = "2021-01-04T09:55:14.976Z[Etc/UTC]")
 public class V1DownwardAPIVolumeSource {
   public static final String SERIALIZED_NAME_DEFAULT_MODE = "defaultMode";
 
@@ -47,17 +47,19 @@ public class V1DownwardAPIVolumeSource {
   }
 
   /**
-   * Optional: mode bits to use on created files by default. Must be a value between 0 and 0777.
-   * Defaults to 0644. Directories within the path are not affected by this setting. This might be
-   * in conflict with other options that affect the file mode, like fsGroup, and the result can be
-   * other mode bits set.
+   * Optional: mode bits to use on created files by default. Must be a Optional: mode bits used to
+   * set permissions on created files by default. Must be an octal value between 0000 and 0777 or a
+   * decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires
+   * decimal values for mode bits. Defaults to 0644. Directories within the path are not affected by
+   * this setting. This might be in conflict with other options that affect the file mode, like
+   * fsGroup, and the result can be other mode bits set.
    *
    * @return defaultMode
    */
   @javax.annotation.Nullable
   @ApiModelProperty(
       value =
-          "Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.")
+          "Optional: mode bits to use on created files by default. Must be a Optional: mode bits used to set permissions on created files by default. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.")
   public Integer getDefaultMode() {
     return defaultMode;
   }
@@ -74,7 +76,7 @@ public class V1DownwardAPIVolumeSource {
 
   public V1DownwardAPIVolumeSource addItemsItem(V1DownwardAPIVolumeFile itemsItem) {
     if (this.items == null) {
-      this.items = new ArrayList<V1DownwardAPIVolumeFile>();
+      this.items = new ArrayList<>();
     }
     this.items.add(itemsItem);
     return this;
