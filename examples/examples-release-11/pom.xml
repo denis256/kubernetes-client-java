@@ -4,31 +4,31 @@
     <parent>
         <groupId>io.kubernetes</groupId>
         <artifactId>client-java-examples-parent</artifactId>
-        <version>12.0.0-SNAPSHOT</version>
+        <version>12.0.1-SNAPSHOT</version>
         <relativePath>..</relativePath>
     </parent>
 
     <artifactId>client-java-examples-release-11</artifactId>
     <name>client-java-examples-release-11</name>
-    <version>12.0.0-SNAPSHOT</version>
+    <version>12.0.1-SNAPSHOT</version>
     <properties>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <junit.version>4.13.1</junit.version>
-        <spring.boot.version>2.4.1</spring.boot.version>
+        <spring.boot.version>2.5.2</spring.boot.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient</artifactId>
-            <version>0.9.0</version>
+            <version>0.11.0</version>
         </dependency>
         <dependency>
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_httpserver</artifactId>
-            <version>0.9.0</version>
+            <version>0.11.0</version>
         </dependency>
         <dependency>
             <groupId>io.kubernetes</groupId>
@@ -38,22 +38,22 @@
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java</artifactId>
-            <version>11.0.0</version>
+            <version>11.0.1</version>
         </dependency>
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java-extended</artifactId>
-            <version>11.0.0</version>
+            <version>11.0.1</version>
         </dependency>
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java-spring-integration</artifactId>
-            <version>11.0.0</version>
+            <version>11.0.1</version>
         </dependency>
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java-proto</artifactId>
-            <version>11.0.0</version>
+            <version>11.0.1</version>
         </dependency>
         <dependency>
             <groupId>commons-cli</groupId>

@@ -37,6 +37,10 @@ public class ReflectorRunnable<
         ApiType extends KubernetesObject, ApiListType extends KubernetesListObject>
     implements Runnable {
 
+  public static Duration REFLECTOR_WATCH_CLIENTSIDE_TIMEOUT = Duration.ofMinutes(5);
+
+  public static Duration REFLECTOR_WATCH_CLIENTSIDE_MAX_TIMEOUT = Duration.ofMinutes(5 * 2);
+
   private static final Logger log = LoggerFactory.getLogger(ReflectorRunnable.class);
 
   private String lastSyncResourceVersion;
@@ -108,12 +112,16 @@ public class ReflectorRunnable<
             log.debug(
                 "{}#Start watch with resource version {}", apiTypeClass, lastSyncResourceVersion);
           }
+
+          long jitteredWatchTimeoutSeconds =
+              Double.valueOf(REFLECTOR_WATCH_CLIENTSIDE_TIMEOUT.getSeconds() * (1 + Math.random()))
+                  .longValue();
           Watchable<ApiType> newWatch =
               listerWatcher.watch(
                   new CallGeneratorParams(
                       Boolean.TRUE,
                       lastSyncResourceVersion,
-                      Long.valueOf(Duration.ofMinutes(5).getSeconds()).intValue()));
+                      Long.valueOf(jitteredWatchTimeoutSeconds).intValue()));
 
           synchronized (this) {
             if (!isActive.get()) {
@@ -158,6 +166,8 @@ public class ReflectorRunnable<
             "ResourceVersion {} expired, will retry w/o resourceVersion at the next time",
             getRelistResourceVersion());
         isLastSyncResourceVersionUnavailable = true;
+      } else {
+        this.exceptionHandler.accept(apiTypeClass, e);
       }
     } catch (Throwable t) {
       this.exceptionHandler.accept(apiTypeClass, t);
@@ -221,10 +231,15 @@ public class ReflectorRunnable<
         continue;
       }
       if (eventType.get() == EventType.ERROR) {
-        String errorMessage =
-            String.format("got ERROR event and its status: %s", item.status.toString());
-        log.error(errorMessage);
-        throw new RuntimeException(errorMessage);
+        if (item.status != null && item.status.getCode() == HttpURLConnection.HTTP_GONE) {
+          log.info("Watch connection expired: {}", item.status.getMessage());
+          return;
+        } else {
+          String errorMessage =
+              String.format("got ERROR event and its status: %s", item.status.toString());
+          log.error(errorMessage);
+          throw new RuntimeException(errorMessage);
+        }
       }
 
       ApiType obj = item.object;

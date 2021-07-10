@@ -20,9 +20,14 @@ import io.kubernetes.client.informer.cache.Lister;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesInformer;
 import io.kubernetes.client.spring.extended.controller.annotation.KubernetesInformers;
+import io.kubernetes.client.spring.extended.controller.config.KubernetesInformerProperties;
 import io.kubernetes.client.util.generic.GenericKubernetesApi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -39,19 +44,26 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
  * new ApiClient if there's no user-specified one for override. 3. By reading from {@link
  * io.kubernetes.client.spring.extended.controller.annotation.KubernetesInformers}, instantiates and
  * injects informers to spring context with the underlying constructing process hidden from users.
+ *
+ * @deprecated instead of declaring via the annotation create the informers manually as {@link
+ *     org.springframework.context.annotation.Bean @Beans}
  */
+@Deprecated
 public class KubernetesInformerFactoryProcessor
-    implements BeanDefinitionRegistryPostProcessor, Ordered {
+    implements BeanDefinitionRegistryPostProcessor, BeanFactoryAware, Ordered {
+
+  private static final Logger log =
+      LoggerFactory.getLogger(KubernetesInformerFactoryProcessor.class);
 
   public static final int ORDER = 0;
+
+  @Autowired private KubernetesInformerProperties informerProperties;
 
   private ConfigurableListableBeanFactory beanFactory;
 
   @Override
   public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory)
-      throws BeansException {
-    this.beanFactory = beanFactory;
-  }
+      throws BeansException {}
 
   @Override
   public int getOrder() {
@@ -65,15 +77,22 @@ public class KubernetesInformerFactoryProcessor
       return;
     }
     for (String name : registry.getBeanDefinitionNames()) {
+      KubernetesInformers kubernetesInformers = null;
       Class<?> cls = ((BeanFactory) registry).getType(name);
       if (cls != null) {
-        KubernetesInformers kubernetesInformers =
+        kubernetesInformers =
             AnnotatedElementUtils.getMergedAnnotation(cls, KubernetesInformers.class);
-        if (kubernetesInformers != null && kubernetesInformers.value().length > 0) {
-          for (KubernetesInformer kubernetesInformer : kubernetesInformers.value()) {
-            registerInformer(registry, kubernetesInformer);
-            registerLister(registry, kubernetesInformer);
-          }
+      }
+      if (kubernetesInformers == null) {
+        kubernetesInformers = beanFactory.findAnnotationOnBean(name, KubernetesInformers.class);
+      }
+      if (kubernetesInformers == null) {
+        continue;
+      }
+      if (kubernetesInformers.value().length > 0) {
+        for (KubernetesInformer kubernetesInformer : kubernetesInformers.value()) {
+          registerInformer(registry, kubernetesInformer);
+          registerLister(registry, kubernetesInformer);
         }
       }
     }
@@ -122,6 +141,20 @@ public class KubernetesInformerFactoryProcessor
   private <T extends KubernetesObject> SharedInformer<T> informer(
       Class<T> type, KubernetesInformer kubernetesInformer) {
     ApiClient apiClient = this.beanFactory.getBean(ApiClient.class);
+
+    if (apiClient.getHttpClient().readTimeoutMillis() > 0) {
+      log.warn(
+          "Enforcing read-timeout of the ApiClient {} to {} so that the watch connection won't abort from client-side",
+          apiClient,
+          informerProperties.getClientReadTimeout());
+      apiClient.setHttpClient(
+          apiClient
+              .getHttpClient()
+              .newBuilder()
+              .readTimeout(informerProperties.getClientReadTimeout())
+              .build());
+    }
+
     SharedInformerFactory sharedInformerFactory =
         this.beanFactory.getBean(SharedInformerFactory.class);
     final GenericKubernetesApi api =
@@ -136,5 +169,10 @@ public class KubernetesInformerFactoryProcessor
         sharedInformerFactory.sharedIndexInformerFor(
             api, type, kubernetesInformer.resyncPeriodMillis(), kubernetesInformer.namespace());
     return sharedIndexInformer;
+  }
+
+  @Override
+  public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+    this.beanFactory = (ConfigurableListableBeanFactory) beanFactory;
   }
 }

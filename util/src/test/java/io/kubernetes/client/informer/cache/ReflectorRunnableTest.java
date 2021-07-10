@@ -34,17 +34,13 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
 import org.hamcrest.core.IsEqual;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.contrib.java.lang.system.EnvironmentVariables;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ReflectorRunnableTest {
-
-  @Rule public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
   @Mock private DeltaFIFO deltaFIFO;
 
@@ -116,8 +112,63 @@ public class ReflectorRunnableTest {
   }
 
   @Test
-  public void testReflectorRunnableCaptureListException() throws ApiException {
+  public void testReflectorRunnableCaptureListRuntimeException() throws ApiException {
     RuntimeException expectedException = new RuntimeException("noxu");
+    AtomicReference<Throwable> actualException = new AtomicReference<>();
+    when(listerWatcher.list(any())).thenThrow(expectedException);
+    ReflectorRunnable<V1Pod, V1PodList> reflectorRunnable =
+        new ReflectorRunnable<>(
+            V1Pod.class,
+            listerWatcher,
+            deltaFIFO,
+            (apiType, t) -> {
+              actualException.set(t);
+            });
+    try {
+      Thread thread = new Thread(reflectorRunnable::run);
+      thread.setDaemon(true);
+      thread.start();
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(1))
+          .pollInterval(Duration.ofMillis(100))
+          .untilAtomic(actualException, new IsEqual<>(expectedException));
+    } finally {
+      reflectorRunnable.stop();
+    }
+  }
+
+  @Test
+  public void testReflectorRunnableShouldPardonList410ApiException() throws ApiException {
+    ApiException expectedException = new ApiException(410, "noxu");
+    AtomicReference<Throwable> actualException = new AtomicReference<>();
+    when(listerWatcher.list(any())).thenThrow(expectedException);
+    ReflectorRunnable<V1Pod, V1PodList> reflectorRunnable =
+        new ReflectorRunnable<>(
+            V1Pod.class,
+            listerWatcher,
+            deltaFIFO,
+            (apiType, t) -> {
+              actualException.set(t);
+            });
+    try {
+      Thread thread = new Thread(reflectorRunnable::run);
+      thread.setDaemon(true);
+      thread.start();
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(1))
+          .pollInterval(Duration.ofMillis(100))
+          .until(
+              () -> {
+                return reflectorRunnable.isLastSyncResourceVersionUnavailable();
+              });
+    } finally {
+      reflectorRunnable.stop();
+    }
+  }
+
+  @Test
+  public void testReflectorRunnableShouldCaptureListNon410ApiException() throws ApiException {
+    ApiException expectedException = new ApiException(403, "noxu");
     AtomicReference<Throwable> actualException = new AtomicReference<>();
     when(listerWatcher.list(any())).thenThrow(expectedException);
     ReflectorRunnable<V1Pod, V1PodList> reflectorRunnable =
